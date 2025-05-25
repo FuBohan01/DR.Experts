@@ -1,9 +1,10 @@
 DATA:
   DATASET: koniq
-  BATCH_SIZE: 52
+  # BATCH_SIZE: 39  # 4卡
+  BATCH_SIZE: 52  # 3卡
   PATCH_NUM: 3
   TEST_PATCH_NUM: 15
-  CROP_SIZE: (224,224)
+  CROP_SIZE: (384,384)
 SET:
   COUNT: 10073
 MODEL:
@@ -19,7 +20,7 @@ MODEL:
     QKV_BIAS : True
     # # Download the pretrained weights and input the path here
     PRETRAINED: True
-    PRETRAINED_MODEL_PATH: /home/fubohan/Code/DIQA/checkpoint/deit_3_small_224_21k.pth
+    PRETRAINED_MODEL_PATH: /home/fubohan/Code/DIQA/checkpoint/deit_3_small_384_21k.pth
 TRAIN:
   EPOCHS: 9
   WARMUP_EPOCHS: 3

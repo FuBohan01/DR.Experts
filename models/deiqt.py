@@ -383,6 +383,7 @@ class deiqt_models(nn.Module):
         Attention_block=Attention,
         Mlp_block=Mlp,
         init_scale=1e-4,
+        img_size=384,
     ):
         super().__init__()
 
@@ -394,7 +395,10 @@ class deiqt_models(nn.Module):
             in_chans=in_chans,
             embed_dim=embed_dim,
         )
-        num_patches = 196
+        if img_size == 384:
+            num_patches = 576
+        else:
+            num_patches = 196
         self.cls_token = nn.Parameter(torch.randn(1, 1, embed_dim))
         self.pos_embed = nn.Parameter(torch.zeros(1, num_patches, embed_dim))
 
@@ -530,9 +534,9 @@ def build_deiqt(
 if __name__ == "__main__":
     model = build_deiqt(
         pretrained=False,
-        pretrained_model_path="/home/fubohan/Code/DIQA-dev/checkpoint/deit_3_small_224_21k.pth",
+        pretrained_model_path="/home/fubohan/Code/DIQA-dev/checkpoint/deit_3_small_384_21k.pth",
     )
 
-    input1 = torch.randn(1, 3, 224, 224)
+    input1 = torch.randn(1, 3, 384, 384)
     # summary(model, input_data=[input1], device=torch.device("cpu"))
     print(model(input1).shape)

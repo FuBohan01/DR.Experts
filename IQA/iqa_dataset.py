@@ -54,6 +54,7 @@ class KONIQDATASET(data.Dataset):
         """
         path, target = self.samples[index]
         sample = self._load_image(path)
+        
         sample = self.transform[0](sample)
         sample = self.transform[1](sample)
         sample = self.transform[2](sample)

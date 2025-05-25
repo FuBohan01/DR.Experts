@@ -218,6 +218,8 @@ _C.EXP_INDEX = 0
 _C.LOCAL_RANK = 0
 # for acceleration
 _C.FUSED_WINDOW_PROCESS = True
+# for last epoch checkpoint saving
+_C.SAVE_LAST_CHECKPOINT = True
 
 
 def _update_config_from_file(config, cfg_file):

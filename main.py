@@ -128,7 +128,7 @@ def main(config):
         wandb_name = group_name + "_" + str(config.EXP_INDEX)
         os.makedirs(wandb_dir := (os.path.join(config.OUTPUT, "wandb")), exist_ok=True)
         wandb_runner = wandb.init(
-            project="Da-CLIP-IQA",
+            project="DACLIP-IQA",
             entity="404202331-beijing-institute-of-technology",
             group=group_name,
             name=wandb_name,
@@ -256,7 +256,8 @@ def main(config):
         )
         if (
             dist.get_rank() == 0
-            and (epoch % config.SAVE_FREQ == 0 or epoch == (config.TRAIN.EPOCHS - 1))
+            # and (epoch % config.SAVE_FREQ == 0 or epoch == (config.TRAIN.EPOCHS - 1))
+            and (epoch > config.TRAIN.EPOCHS / 2)
             and not config.DISABLE_SAVE
         ):
             save_checkpoint(
@@ -605,9 +606,9 @@ if __name__ == "__main__":
         # )
         # config.OUTPUT = (
         #     (config.OUTPUT)
-        #     .replace(config.TAG, "deiqt_test_dataloader255")
-        #     .replace("results", "/mnt/iMVR/guanyi/dataset/IQA/results")
-        #     .replace("/livec", "/dev")
+        #     .replace(config.TAG, "full_k10_deit_small_crop384")
+        #     # .replace("results", "/mnt/iMVR/guanyi/dataset/IQA/results")
+        #     # .replace("/livec", "/dev")
         # )
         config.freeze()
 

@@ -268,7 +268,7 @@ class vit_models(nn.Module):
         
         # if self.dropout_rate:
         #     x = F.dropout(x, p=float(self.dropout_rate), training=self.training)
-        # x = self.head(x)
+        x = self.head(x)
         
         return x
 
@@ -435,7 +435,7 @@ class dascore_vit_models(nn.Module):
 #                 param.requires_grad = False
 #     return model
 
-def build_deit_large(pretrained=False, img_size=224, pretrained_21k = True,  **kwargs):
+def build_deit_large(pretrained=False, img_size=384, pretrained_21k = True,  **kwargs):
     model = vit_models(
         img_size = img_size, patch_size=16, embed_dim=384, depth=12, num_heads=6, mlp_ratio=4, qkv_bias=True,
         norm_layer=partial(nn.LayerNorm, eps=1e-6),block_layers=Layer_scale_init_Block,num_classes=1, **kwargs)

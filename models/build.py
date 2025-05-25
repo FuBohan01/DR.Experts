@@ -72,6 +72,10 @@ def build_model(config):
         model = build_deit_large(
             pretrained=True
         )
+    # elif model_type == "deit_large":
+    #     model = build_deit_large(
+    #         pretrained=True
+    #     )
     else:
         raise NotImplementedError(f"Unkown model: {model_type}")
 

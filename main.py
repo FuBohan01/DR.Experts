@@ -578,13 +578,13 @@ if __name__ == "__main__":
 
         filename = "sel_num.data"
         # -----------------------------
-        if dist.get_rank() == 0:
-            if not os.path.exists(sel_path := os.path.join(config.OUTPUT, filename)):
-                sel_num = list(range(0, config.SET.COUNT))
-                random.shuffle(sel_num)
-                with open(os.path.join(config.OUTPUT, filename), "wb") as f:
-                    pickle.dump(sel_num, f)
-                del sel_num
+        # if dist.get_rank() == 0:
+        #     if not os.path.exists(sel_path := os.path.join(config.OUTPUT, filename)):
+        #         sel_num = list(range(0, config.SET.COUNT))
+        #         random.shuffle(sel_num)
+        #         with open(os.path.join(config.OUTPUT, filename), "wb") as f:
+        #             pickle.dump(sel_num, f)
+        #         del sel_num
         # -----------------------------
         dist.barrier()
 
@@ -604,12 +604,12 @@ if __name__ == "__main__":
         #     .replace(config.TAG, "dinet_small_noalternet_attmask_fixed_addinv_j12_k10k")
         #     .replace("/ablation-k10k", "/dev")
         # )
-        # config.OUTPUT = (
-        #     (config.OUTPUT)
-        #     .replace(config.TAG, "full_k10_deit_small_crop384")
-        #     # .replace("results", "/mnt/iMVR/guanyi/dataset/IQA/results")
-        #     # .replace("/livec", "/dev")
-        # )
+        config.OUTPUT = (
+            (config.OUTPUT)
+            .replace(config.TAG, "full_k10_deit")
+            # .replace("results", "/mnt/iMVR/guanyi/dataset/IQA/results")
+            # .replace("/livec", "/dev")
+        )
         config.freeze()
 
         with open(os.path.join(config.OUTPUT, filename), "rb") as f:

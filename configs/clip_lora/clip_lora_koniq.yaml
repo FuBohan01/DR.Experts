@@ -1,0 +1,31 @@
+DATA:
+  DATASET: koniq
+  # BATCH_SIZE: 128
+  BATCH_SIZE: 96
+  PATCH_NUM: 10
+  CROP_SIZE: (224,224)
+SET:
+  COUNT: 10073
+MODEL:
+  TYPE: clip_lora
+  NAME: lora
+  DROP_PATH_RATE: 0.0
+  CLIP_LORA:
+    ENCODER : "both"
+    POSITION : "all"
+    PARAMS : ["q", "k", "v"]
+    R : 16
+    ALPHA : 8
+    DROPOUT_RATE : 0
+    BACKBONE : "ViT-L/14"
+TRAIN:
+  EPOCHS: 40
+  WARMUP_EPOCHS: 3
+  WEIGHT_DECAY: 1.0e-4
+  BASE_LR: 1.0e-3
+  WARMUP_LR: 5.0e-5
+  MIN_LR: 5.0e-5
+  LR_SCHEDULER:
+    NAME: step
+    DECAY_EPOCHS: 3
+DISABLE_SAVE: True

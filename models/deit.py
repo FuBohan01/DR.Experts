@@ -308,7 +308,7 @@ class diff_attention(nn.Module):
         A1_softmax = F.softmax(A1, dim=-1)
         A2_softmax = F.softmax(A2, dim=-1)
         
-        result = (A1_softmax - self.alpha * A2_softmax) @ V
+        result = (A1_softmax + self.alpha * A2_softmax) @ V
         return result
 
 
@@ -361,6 +361,13 @@ class dascore_vit_models(nn.Module):
         self.text = tokenizer(degradations)
         self.lamda_init = nn.Parameter(torch.zeros(1, 384 * len(degradations)), requires_grad=True)
 
+        self.attn_norm = nn.LayerNorm(384 * len(degradations.shape[-1]))
+        self.group_attn_ffn = nn.Sequential(
+            nn.Linear(384 * len(degradations.shape[-1]), 384 * len(degradations.shape[-1]) * 4),
+            nn.GELU(),
+            nn.Linear(384 * len(degradations.shape[-1]) * 4, 384 * len(degradations.shape[-1]))
+        )
+
     def mulithead(self, da_metrics, da_img_feature):
         group_attn = []
         for i in range(da_metrics.shape[1]):
@@ -374,6 +381,9 @@ class dascore_vit_models(nn.Module):
         # group_attn = F.group_norm(group_attn, num_groups=da_metrics.shape[1])
         # group_attn = group_attn.permute(0, 2, 1)  # [bs, num_group, C]
         # group_attn = group_attn.reshape(da_metrics.shape[0], -1)
+        # Norm 和 FFN
+        group_attn = self.attn_norm(group_attn)
+        group_attn = self.group_attn_ffn(group_attn)
         group_attn = group_attn * (1 - self.lamda_init)
         return group_attn
         

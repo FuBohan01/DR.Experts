@@ -268,7 +268,7 @@ class vit_models(nn.Module):
         
         # if self.dropout_rate:
         #     x = F.dropout(x, p=float(self.dropout_rate), training=self.training)
-        x = self.head(x)
+        # x = self.head(x)
         
         return x
 
@@ -308,7 +308,7 @@ class diff_attention(nn.Module):
         A1_softmax = F.softmax(A1, dim=-1)
         A2_softmax = F.softmax(A2, dim=-1)
         
-        result = (A1_softmax + self.alpha * A2_softmax) @ V
+        result = (A1_softmax - self.alpha * A2_softmax) @ V
         return result
 
 
@@ -347,7 +347,7 @@ class dascore_vit_models(nn.Module):
         self.backbone = vit_models(img_size = img_size, patch_size=16, embed_dim=384, depth=12, num_heads=6, mlp_ratio=4, qkv_bias=True,
                                 norm_layer=partial(nn.LayerNorm, eps=1e-6),block_layers=Layer_scale_init_Block,num_classes=1)
         
-        checkpoint = '/home/fubohan/Code/DIQA-dev/checkpoint/daclip_ViT-B-32.pt'
+        checkpoint = '/home/fubohan/Code/DIQA/checkpoint/daclip_ViT-B-32.pt'
         self.head, self.head_preprocess = open_clip.create_model_from_pretrained('daclip_ViT-B-32', pretrained=checkpoint)
         degradations = ['motion-blurry','hazy','jpeg-compressed','low-light','noisy','raindrop','rainy','shadowed','snowy','uncompleted']
 
@@ -358,14 +358,14 @@ class dascore_vit_models(nn.Module):
         self.learnerable_token = nn.Parameter(torch.zeros(1, 512), requires_grad=True)
 
         tokenizer = open_clip.get_tokenizer('ViT-B-32')
-        self.text = tokenizer(degradations)
+        self.text = tokenizer(degradations).cuda()
         self.lamda_init = nn.Parameter(torch.zeros(1, 384 * len(degradations)), requires_grad=True)
 
-        self.attn_norm = nn.LayerNorm(384 * len(degradations.shape[-1]))
+        self.attn_norm = nn.LayerNorm(384 * len(degradations))
         self.group_attn_ffn = nn.Sequential(
-            nn.Linear(384 * len(degradations.shape[-1]), 384 * len(degradations.shape[-1]) * 4),
+            nn.Linear(384 * len(degradations), 384 * len(degradations) * 4),
             nn.GELU(),
-            nn.Linear(384 * len(degradations.shape[-1]) * 4, 384 * len(degradations.shape[-1]))
+            nn.Linear(384 * len(degradations) * 4, 384 * len(degradations))
         )
 
     def mulithead(self, da_metrics, da_img_feature):
@@ -416,57 +416,57 @@ class dascore_vit_models(nn.Module):
         out = self.score(out)
         return out
 
-# def build_deit_large(pretrained=False, img_size=384, pretrained_21k=True, **kwargs):
-#     # 创建主模型
-#     model = dascore_vit_models(img_size=img_size)
-#     # 如果需要加载backbone的预训练权重
-#     if pretrained:
-#         name = 'https://dl.fbaipublicfiles.com/deit/deit_3_small_' + str(img_size) + '_'
-#         if pretrained_21k:
-#             name += '21k.pth'
-#         else:
-#             name += '1k.pth'
-#         checkpoint = torch.hub.load_state_dict_from_url(
-#             url=name,
-#             map_location="cpu", check_hash=True
-#         )
-#         state_dict = checkpoint['model']
-#         # 删除head权重，避免shape不匹配
-#         if 'head.weight' in state_dict:
-#             del state_dict['head.weight']
-#         if 'head.bias' in state_dict:
-#             del state_dict['head.bias']
-#         # 加载到backbone
-#         model.backbone.load_state_dict(state_dict, strict=False)
-#         for name, param in model.named_parameters():
-#             if 'head' in name:
-#                 param.requires_grad = False
-#             elif 'text' in name:
-#                 param.requires_grad = False
-#     return model
-
-def build_deit_large(pretrained=False, img_size=384, pretrained_21k = True,  **kwargs):
-    model = vit_models(
-        img_size = img_size, patch_size=16, embed_dim=384, depth=12, num_heads=6, mlp_ratio=4, qkv_bias=True,
-        norm_layer=partial(nn.LayerNorm, eps=1e-6),block_layers=Layer_scale_init_Block,num_classes=1, **kwargs)
-    model.default_cfg = _cfg()
+def build_deit_large(pretrained=False, img_size=384, pretrained_21k=True, **kwargs):
+    # 创建主模型
+    model = dascore_vit_models(img_size=img_size)
+    # 如果需要加载backbone的预训练权重
     if pretrained:
-        name = 'https://dl.fbaipublicfiles.com/deit/deit_3_small_'+str(img_size)+'_'
+        name = 'https://dl.fbaipublicfiles.com/deit/deit_3_small_' + str(img_size) + '_'
         if pretrained_21k:
-            name+='21k.pth'
+            name += '21k.pth'
         else:
-            name+='1k.pth'
-            
+            name += '1k.pth'
         checkpoint = torch.hub.load_state_dict_from_url(
             url=name,
             map_location="cpu", check_hash=True
         )
         state_dict = checkpoint['model']
-        del state_dict['head.weight']
-        del state_dict['head.bias']
-        model.load_state_dict(state_dict, strict=False)
-
+        # 删除head权重，避免shape不匹配
+        if 'head.weight' in state_dict:
+            del state_dict['head.weight']
+        if 'head.bias' in state_dict:
+            del state_dict['head.bias']
+        # 加载到backbone
+        model.backbone.load_state_dict(state_dict, strict=False)
+        for name, param in model.named_parameters():
+            if 'head' in name:
+                param.requires_grad = False
+            elif 'text' in name:
+                param.requires_grad = False
     return model
+
+# def build_deit_large(pretrained=False, img_size=384, pretrained_21k = True,  **kwargs):
+#     model = vit_models(
+#         img_size = img_size, patch_size=16, embed_dim=384, depth=12, num_heads=6, mlp_ratio=4, qkv_bias=True,
+#         norm_layer=partial(nn.LayerNorm, eps=1e-6),block_layers=Layer_scale_init_Block,num_classes=1, **kwargs)
+#     model.default_cfg = _cfg()
+#     if pretrained:
+#         name = 'https://dl.fbaipublicfiles.com/deit/deit_3_small_'+str(img_size)+'_'
+#         if pretrained_21k:
+#             name+='21k.pth'
+#         else:
+#             name+='1k.pth'
+            
+#         checkpoint = torch.hub.load_state_dict_from_url(
+#             url=name,
+#             map_location="cpu", check_hash=True
+#         )
+#         state_dict = checkpoint['model']
+#         del state_dict['head.weight']
+#         del state_dict['head.bias']
+#         model.load_state_dict(state_dict, strict=False)
+
+#     return model
 
 def deit_base_patch16_LS(pretrained=False, img_size=224, pretrained_21k = False,  **kwargs):
     model = vit_models(

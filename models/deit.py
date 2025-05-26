@@ -275,8 +275,10 @@ class vit_models(nn.Module):
 class diff_attention(nn.Module):
     def __init__(self, embedding_dim, alpha=0.5):
         super(diff_attention, self).__init__()
-        self.W_q = nn.Linear(embedding_dim, embedding_dim)
-        self.W_k = nn.Linear(embedding_dim, embedding_dim)
+        self.W_q1 = nn.Linear(embedding_dim, embedding_dim)
+        self.W_q2 = nn.Linear(embedding_dim, embedding_dim)
+        self.W_k1 = nn.Linear(embedding_dim, embedding_dim)
+        self.W_k2 = nn.Linear(embedding_dim, embedding_dim)
         self.W_v = nn.Linear(embedding_dim * 2, embedding_dim)  # Changed to output d dimensions
         self.alpha = nn.Parameter(torch.tensor(alpha), requires_grad=True)
         self.embedding_dim = embedding_dim
@@ -293,10 +295,10 @@ class diff_attention(nn.Module):
         - Tensor: Output tensor.
         """
         
-        Q1 = self.W_q(X1)
-        K1 = self.W_k(X1)
-        Q2 = self.W_q(X2)
-        K2 = self.W_k(X2)      
+        Q1 = self.W_q1(X1)
+        K1 = self.W_k1(X1)
+        Q2 = self.W_q2(X2)
+        K2 = self.W_k2(X2)      
         X = torch.cat([X1, X2], dim=1)
         V = self.W_v(X)
 
@@ -308,7 +310,7 @@ class diff_attention(nn.Module):
         A1_softmax = F.softmax(A1, dim=-1)
         A2_softmax = F.softmax(A2, dim=-1)
         
-        result = (A1_softmax - self.alpha * A2_softmax) @ V
+        result = (A1_softmax  * self.alpha * A2_softmax) @ V
         return result
 
 
@@ -376,11 +378,6 @@ class dascore_vit_models(nn.Module):
             # attn = self.diff_attention(da_metrics[i].unsqueeze(0), da_img_feature)
             group_attn.append(attn)
         group_attn = torch.cat(group_attn, dim=-1)  # [bs, num_group * C]
-        # Group attention normalization
-        # group_attn = group_attn.view(da_metrics.shape[0], da_metrics.shape[1], da_metrics.shape[2]).permute(0, 2, 1)  # [bs, C, num_group]
-        # group_attn = F.group_norm(group_attn, num_groups=da_metrics.shape[1])
-        # group_attn = group_attn.permute(0, 2, 1)  # [bs, num_group, C]
-        # group_attn = group_attn.reshape(da_metrics.shape[0], -1)
         # Norm 和 FFN
         group_attn = self.attn_norm(group_attn)
         group_attn = self.group_attn_ffn(group_attn)

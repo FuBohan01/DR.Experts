@@ -310,7 +310,7 @@ class diff_attention(nn.Module):
         A1_softmax = F.softmax(A1, dim=-1)
         A2_softmax = F.softmax(A2, dim=-1)
         
-        result = (A1_softmax  * self.alpha * A2_softmax) @ V
+        result = (A2_softmax *(1- self.alpha * A1_softmax)) @ V
         return result
 
 
@@ -370,11 +370,11 @@ class dascore_vit_models(nn.Module):
             nn.Linear(384 * len(degradations) * 4, 384 * len(degradations))
         )
 
-    def mulithead(self, da_metrics, da_img_feature):
+    def mulithead(self, da_metrics, img_feature):
         group_attn = []
         for i in range(da_metrics.shape[1]):
             da_metric_i = da_metrics[:, i, :]  # [bs, 384]
-            attn = self.diff_attention(da_metric_i, da_img_feature)  # [bs, 384]
+            attn = self.diff_attention(da_metric_i, img_feature)  # [bs, 384]
             # attn = self.diff_attention(da_metrics[i].unsqueeze(0), da_img_feature)
             group_attn.append(attn)
         group_attn = torch.cat(group_attn, dim=-1)  # [bs, num_group * C]
@@ -392,7 +392,7 @@ class dascore_vit_models(nn.Module):
         da_img = F.interpolate(x, size=(224, 224), mode='bilinear', align_corners=False)
 
         text_features = self.head.encode_text(self.text)
-        da_img_feature = self.head.encode_image(da_img) # shape=[1, 512] 
+        clip_image_feature, da_img_feature = self.head.encode_image(da_img, control= True) # shape=[1, 512] 
         da_img_feature /= da_img_feature.norm(dim=-1, keepdim=True)
         text_features /= text_features.norm(dim=-1, keepdim=True)
 

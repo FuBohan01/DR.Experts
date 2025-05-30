@@ -97,26 +97,26 @@ class LIVECDATASET(data.Dataset):
             im = Image.fromarray(np.uint8(random_img))
         return im
 
-    def _depth_path_converter(self, img_path):
-        directory, filename = os.path.split(img_path)
-        name, ext = os.path.splitext(filename)
+    # def _depth_path_converter(self, img_path):
+    #     directory, filename = os.path.split(img_path)
+    #     name, ext = os.path.splitext(filename)
 
-        depth_dir = os.path.join(os.path.dirname(directory), "Depths")
-        depths_file = f"{name}-depth.png"
-        orders_file = f"{name}-onehot_depth.npy"
+    #     depth_dir = os.path.join(os.path.dirname(directory), "Depths")
+    #     depths_file = f"{name}-depth.png"
+    #     orders_file = f"{name}-onehot_depth.npy"
 
-        return os.path.join(depth_dir, depths_file), os.path.join(
-            depth_dir, orders_file
-        )
+    #     return os.path.join(depth_dir, depths_file), os.path.join(
+    #         depth_dir, orders_file
+    #     )
 
-    def score_to_onehot(self, target_score):
-        index = np.digitize([target_score], self.bins) - 1
-        index = min(index[0], self.score_k - 1)
+    # def score_to_onehot(self, target_score):
+    #     index = np.digitize([target_score], self.bins) - 1
+    #     index = min(index[0], self.score_k - 1)
 
-        one_hot = np.zeros(self.score_k, dtype=np.float32)
-        one_hot[index] = 1.0
-        one_hot = torch.from_numpy(one_hot).float()
-        return one_hot
+    #     one_hot = np.zeros(self.score_k, dtype=np.float32)
+    #     one_hot[index] = 1.0
+    #     one_hot = torch.from_numpy(one_hot).float()
+    #     return one_hot
 
     def __getitem__(self, index):
         """
@@ -126,27 +126,29 @@ class LIVECDATASET(data.Dataset):
             tuple: (sample, target) where target is class_index of the target class.
         """
         path, target = self.samples[index]
-        sample = np.array(self._load_image(path)).astype(np.float32)
-        cor_depth, cor_orders = (
-            np.array(
-                self._load_image(self._depth_path_converter(path)[0], mode="L")
-            ).astype(np.float32),
-            np.load(self._depth_path_converter(path)[1], allow_pickle=True).astype(
-                np.float32
-            ),
-        )
-        sample = torch.from_numpy(
-            np.transpose(
-                np.concatenate([sample, cor_depth[:, :, None], cor_orders], axis=-1),
-                (2, 0, 1),
-            )
-        ).contiguous()
+        sample = self._load_image(path)
+        # sample = np.array(self._load_image(path)).astype(np.float32)
+        # cor_depth, cor_orders = (
+        #     np.array(
+        #         self._load_image(self._depth_path_converter(path)[0], mode="L")
+        #     ).astype(np.float32),
+        #     np.load(self._depth_path_converter(path)[1], allow_pickle=True).astype(
+        #         np.float32
+        #     ),
+        # )
+        # sample = torch.from_numpy(
+        #     np.transpose(
+        #         np.concatenate([sample, cor_depth[:, :, None], cor_orders], axis=-1),
+        #         (2, 0, 1),
+        #     )
+        # ).contiguous()
         sample = self.transform[0](sample)
-        images, depths, orders = (
-            (sample[:3, :, :] / 255.0).contiguous(),
-            sample[3, :, :].contiguous(),
-            sample[4:, :, :].contiguous(),
-        )
+        # images, depths, orders = (
+        #     (sample[:3, :, :] / 255.0).contiguous(),
+        #     sample[3, :, :].contiguous(),
+        #     sample[4:, :, :].contiguous(),
+        # )
+        images = self.transform[1](sample)
         images = self.transform[2](images)
         return (
             images,

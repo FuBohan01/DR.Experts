@@ -281,7 +281,10 @@ class diff_attention(nn.Module):
         self.W_k2 = nn.Linear(embedding_dim, embedding_dim)
         self.W_v = nn.Linear(embedding_dim * 2, embedding_dim)  # Changed to output d dimensions
         self.alpha = nn.Parameter(torch.tensor(alpha), requires_grad=True)
+        # self.alpha_fc = nn.Linear(embedding_dim * 2, 1)
         self.embedding_dim = embedding_dim
+        self.norm1 = nn.LayerNorm(embedding_dim)
+        self.norm2 = nn.LayerNorm(embedding_dim)
 
     def forward(self, X1, X2):
         """
@@ -294,7 +297,8 @@ class diff_attention(nn.Module):
         Returns:
         - Tensor: Output tensor.
         """
-        
+        X1 = self.norm1(X1)
+        X2 = self.norm2(X2)
         Q1 = self.W_q1(X1)
         K1 = self.W_k1(X1)
         Q2 = self.W_q2(X2)
@@ -310,7 +314,8 @@ class diff_attention(nn.Module):
         A1_softmax = F.softmax(A1, dim=-1)
         A2_softmax = F.softmax(A2, dim=-1)
         
-        result = (A2_softmax *(1- self.alpha * A1_softmax)) @ V
+        # alpha = torch.relu(self.alpha_fc(X))
+        result = (A2_softmax *(1 - self.alpha * A1_softmax)) @ V
         return result
 
 
@@ -369,6 +374,10 @@ class dascore_vit_models(nn.Module):
             nn.GELU(),
             nn.Linear(384 * len(degradations) * 4, 384 * len(degradations))
         )
+        self.norm1 = nn.LayerNorm(512)
+        self.norm2 = nn.LayerNorm(384)
+        self.norm3 = nn.LayerNorm(384)
+        self.norm4 = nn.LayerNorm(384 * len(degradations))
 
     def mulithead(self, da_metrics, img_feature):
         group_attn = []
@@ -380,6 +389,7 @@ class dascore_vit_models(nn.Module):
         group_attn = torch.cat(group_attn, dim=-1)  # [bs, num_group * C]
         # Norm 和 FFN
         group_attn = self.attn_norm(group_attn)
+
         group_attn = self.group_attn_ffn(group_attn)
         group_attn = group_attn * (1 - self.lamda_init)
         return group_attn
@@ -390,16 +400,20 @@ class dascore_vit_models(nn.Module):
         img_feature = self.backbone(x) # [1, 384]
         # da_img = 
         da_img = F.interpolate(x, size=(224, 224), mode='bilinear', align_corners=False)
+        mean = torch.tensor([0.48145466, 0.4578275, 0.40821073], device=da_img.device).view(1, 3, 1, 1)
+        std = torch.tensor([0.26862954, 0.26130258, 0.27577711], device=da_img.device).view(1, 3, 1, 1)
+        da_img = (da_img - mean) / std
 
         text_features = self.head.encode_text(self.text)
         clip_image_feature, da_img_feature = self.head.encode_image(da_img, control= True) # shape=[1, 512] 
-        da_img_feature /= da_img_feature.norm(dim=-1, keepdim=True)
-        text_features /= text_features.norm(dim=-1, keepdim=True)
+        da_img_feature = da_img_feature / da_img_feature.norm(dim=-1, keepdim=True)
+        text_features = text_features / text_features.norm(dim=-1, keepdim=True)
 
         learnerable_token_expand = self.learnerable_token.expand(da_img_feature.shape[0], -1)  # [52, 512]
         da_img_feature = torch.cat([da_img_feature, learnerable_token_expand], dim=-1) # [52, 1024]
-        da_img_feature = self.L1(da_img_feature) # shape=[52, 512]
 
+        da_img_feature = self.L1(da_img_feature) # shape=[52, 512]
+        da_img_feature = self.norm1(da_img_feature)  # [52, 512]
         # 先扩展维度
         text_features_expand = text_features.unsqueeze(0).expand(da_img_feature.shape[0], -1, -1)  # [52, nclass, 512]
         da_img_feature_expand = da_img_feature.unsqueeze(1)  # [52, 1, 512]
@@ -408,8 +422,11 @@ class dascore_vit_models(nn.Module):
         da_metrics = text_features_expand * da_img_feature_expand  # [52, nclass, 512]
         da_metrics = self.L2(da_metrics) # shape=[bs, n_class, 384]
 
-        # out = self.diff_attention(img_feature, da_img_feature) # shape=[1, 384]
+
+        da_metrics = self.norm2(da_metrics)  # [52, n_class, 384]
+        img_feature = self.norm3(img_feature)  # [52, 384]
         out = self.mulithead(da_metrics, img_feature) # shape=[bs, n_class, 384]
+        # out = self.norm4(out)  # [52, n_class* 384]
         out = self.score(out)
         return out
 
@@ -513,6 +530,7 @@ if __name__ == '__main__':
     #         print(f"Frozen: {name} | shape: {param.shape}")
     #     else:
     #         print(f"Trainable: {name} | shape: {param.shape}")
+    # print(model.head.__class__)
     x = torch.randn(52, 3, 384, 384)
     y = model(x)
     print(y.shape)  # should be [1, 1000]

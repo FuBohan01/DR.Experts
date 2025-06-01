@@ -145,6 +145,8 @@ def main(config):
     else:
         wandb_runner = None
 
+
+
     logger.info(f"Creating model:{config.MODEL.TYPE}/{config.MODEL.NAME}")
     model = build_model(config)
     logger.info(str(model))
@@ -599,16 +601,16 @@ if __name__ == "__main__":
         # config.OUTPUT = (config.OUTPUT).replace(
         #     config.TAG, "dinet_spaq_refo_fixed_LVFP4TP15"
         # )
-        config.OUTPUT = (
-            (config.OUTPUT)
-            .replace(config.TAG, "full_livec_daclip_multihead[test1]")
-        )
         # config.OUTPUT = (
         #     (config.OUTPUT)
-        #     .replace(config.TAG, "full_k10_deit")
-        #     # .replace("results", "/mnt/iMVR/guanyi/dataset/IQA/results")
-        #     # .replace("/livec", "/dev")
+        #     .replace(config.TAG, "full_livec_daclip_multihead[test1]")
         # )
+        config.OUTPUT = (
+            (config.OUTPUT)
+            .replace(config.TAG, "full_k10_deit")
+            # .replace("results", "/mnt/iMVR/guanyi/dataset/IQA/results")
+            # .replace("/livec", "/dev")
+        )
         config.freeze()
 
         with open(os.path.join(config.OUTPUT, filename), "rb") as f:
@@ -648,6 +650,7 @@ if __name__ == "__main__":
         # print config
         logger.info(config.dump())
         logger.info(json.dumps(vars(args)))
-
+        os.environ["WANDB_API_KEY"] = '0348a69655c46f0b4cb75e68e70ec2dc2380bc9d'
+        os.environ["WANDB_MODE"] = "offline"
         main(config)
         logger.handlers.clear()

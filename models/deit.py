@@ -374,10 +374,10 @@ class dascore_vit_models(nn.Module):
             nn.GELU(),
             nn.Linear(384 * len(degradations) * 4, 384 * len(degradations))
         )
-        self.norm1 = nn.LayerNorm(512)
-        self.norm2 = nn.LayerNorm(384)
+        self.norm1 = nn.LayerNorm(512 + 512)
+        self.norm2 = nn.LayerNorm(512)
         self.norm3 = nn.LayerNorm(384)
-        self.norm4 = nn.LayerNorm(384 * len(degradations))
+        # self.norm4 = nn.LayerNorm(384 * len(degradations))
 
     def mulithead(self, da_metrics, img_feature):
         group_attn = []
@@ -412,18 +412,18 @@ class dascore_vit_models(nn.Module):
         learnerable_token_expand = self.learnerable_token.expand(da_img_feature.shape[0], -1)  # [52, 512]
         da_img_feature = torch.cat([da_img_feature, learnerable_token_expand], dim=-1) # [52, 1024]
 
-        da_img_feature = self.L1(da_img_feature) # shape=[52, 512]
         da_img_feature = self.norm1(da_img_feature)  # [52, 512]
+        da_img_feature = self.L1(da_img_feature) # shape=[52, 512]
+        
         # 先扩展维度
         text_features_expand = text_features.unsqueeze(0).expand(da_img_feature.shape[0], -1, -1)  # [52, nclass, 512]
         da_img_feature_expand = da_img_feature.unsqueeze(1)  # [52, 1, 512]
 
         # 按元素相乘
         da_metrics = text_features_expand * da_img_feature_expand  # [52, nclass, 512]
+        da_metrics = self.norm2(da_metrics)  # [52, n_class, 512]
         da_metrics = self.L2(da_metrics) # shape=[bs, n_class, 384]
-
-
-        da_metrics = self.norm2(da_metrics)  # [52, n_class, 384]
+        
         img_feature = self.norm3(img_feature)  # [52, 384]
         out = self.mulithead(da_metrics, img_feature) # shape=[bs, n_class, 384]
         # out = self.norm4(out)  # [52, n_class* 384]

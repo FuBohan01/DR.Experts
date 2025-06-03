@@ -260,7 +260,8 @@ class vit_models(nn.Module):
             x = blk(x)
             
         x = self.norm(x)  # [1, 197, 384]
-        return x[:, 0]
+        # return x[:, 0]
+        return x[:, 1:, :]  # [bs, 196, 384] remove cls token
 
     def forward(self, x):
 
@@ -279,12 +280,12 @@ class diff_attention(nn.Module):
         self.W_q2 = nn.Linear(embedding_dim, embedding_dim)
         self.W_k1 = nn.Linear(embedding_dim, embedding_dim)
         self.W_k2 = nn.Linear(embedding_dim, embedding_dim)
-        self.W_v = nn.Linear(embedding_dim * 2, embedding_dim)  # Changed to output d dimensions
+        self.W_v = nn.Linear(embedding_dim, embedding_dim)  # Changed to output d dimensions
         self.alpha = nn.Parameter(torch.tensor(alpha), requires_grad=True)
         # self.alpha_fc = nn.Linear(embedding_dim * 2, 1)
         self.embedding_dim = embedding_dim
-        self.norm1 = nn.LayerNorm(embedding_dim)
-        self.norm2 = nn.LayerNorm(embedding_dim)
+        # self.norm1 = nn.LayerNorm(embedding_dim)
+        # self.norm2 = nn.LayerNorm(embedding_dim)
 
     def forward(self, X1, X2):
         """
@@ -297,13 +298,13 @@ class diff_attention(nn.Module):
         Returns:
         - Tensor: Output tensor.
         """
-        X1 = self.norm1(X1)
-        X2 = self.norm2(X2)
-        Q1 = self.W_q1(X1)
-        K1 = self.W_k1(X1)
-        Q2 = self.W_q2(X2)
-        K2 = self.W_k2(X2)      
+        # X1 = self.norm1(X1)
+        # X2 = self.norm2(X2)
         X = torch.cat([X1, X2], dim=1)
+        Q1 = self.W_q1(X)
+        K1 = self.W_k1(X)
+        Q2 = self.W_q2(X)
+        K2 = self.W_k2(X)      
         V = self.W_v(X)
 
         s = 1 / sqrt(self.embedding_dim)
@@ -315,38 +316,11 @@ class diff_attention(nn.Module):
         A2_softmax = F.softmax(A2, dim=-1)
         
         # alpha = torch.relu(self.alpha_fc(X))
-        result = (A2_softmax *(1 - self.alpha * A1_softmax)) @ V
-        return result
+        # result = (A2_softmax *(1 - self.alpha * A1_softmax)) @ V   
+        result = (A2_softmax - self.alpha * A1_softmax) @ V
+        return result #[bs, 586, 384]
 
 
-# # DeiT III: Revenge of the ViT (https://arxiv.org/abs/2204.07118)
-# class dascore_vit_models(nn.Module):
-#     def __init__(self, img_size=224):
-#         super().__init__()
-#         self.backbone = vit_models(img_size = img_size, patch_size=16, embed_dim=384, depth=12, num_heads=6, mlp_ratio=4, qkv_bias=True,
-#                                 norm_layer=partial(nn.LayerNorm, eps=1e-6),block_layers=Layer_scale_init_Block,num_classes=1)
-#         checkpoint = '/home/fubohan/Code/DIQA-dev/checkpoint/daclip_ViT-B-32.pt'
-#         self.head, self.head_preprocess = open_clip.create_model_from_pretrained('daclip_ViT-B-32', pretrained=checkpoint)
-#         self.Linear = nn.Linear(512 * 2, 384)
-#         self.diff_attention = diff_attention(384)
-#         self.score = nn.Linear(384, 1)
-#         self.learnerable_token = nn.Parameter(torch.zeros(1, 512))
-#         degradations = ['motion-blurry','hazy','jpeg-compressed','low-light','noisy','raindrop','rainy','shadowed','snowy','uncompleted']
-#         tokenizer = open_clip.get_tokenizer('ViT-B-32')
-#         self.text = tokenizer(degradations)
-#     def forward(self, x):
-#         img_feature = self.backbone(x) # [1, 384]
-#         # da_img = 
-#         da_img = F.interpolate(x, size=(224, 224), mode='bilinear', align_corners=False)
-#         with torch.no_grad(), torch.cuda.amp.autocast():
-#             text_features = self.head.encode_text(self.text)
-#             da_img_feature = self.head.encode_image(da_img) # shape=[1, 512] 
-#             da_img_feature /= da_img_feature.norm(dim=-1, keepdim=True)
-#         da_img_feature = torch.cat([da_img_feature, self.learnerable_token], dim=1)
-#         da_img_feature = self.Linear(da_img_feature) # shape=[1, 384]
-#         out = self.diff_attention(img_feature, da_img_feature) # shape=[1, 384]
-#         out = self.score(out)
-#         return out
 # DeiT III: Revenge of the ViT (https://arxiv.org/abs/2204.07118)
 class dascore_vit_models(nn.Module):
     def __init__(self, img_size=384):
@@ -358,35 +332,26 @@ class dascore_vit_models(nn.Module):
         self.head, self.head_preprocess = open_clip.create_model_from_pretrained('daclip_ViT-B-32', pretrained=checkpoint)
         degradations = ['motion-blurry','hazy','jpeg-compressed','low-light','noisy','raindrop','rainy','shadowed','snowy','uncompleted']
 
-        self.L1 = nn.Linear(512 * 2, 512)
-        self.L2 = nn.Linear(512, 384)
+        self.L1 = nn.Linear(512, 384)
+        self.L2 = nn.Linear(576 + len(degradations), 1)  # 196 is the number of patches in ViT-B-32
         self.diff_attention = diff_attention(384)
-        self.score = nn.Linear(384 * len(degradations), 1)
-        self.learnerable_token = nn.Parameter(torch.zeros(1, 512), requires_grad=True)
+        self.score = nn.Linear(384, 1)
 
         tokenizer = open_clip.get_tokenizer('ViT-B-32')
         self.text = tokenizer(degradations).cuda()
-        self.lamda_init = nn.Parameter(torch.zeros(1, 384 * len(degradations)), requires_grad=True)
+        self.lamda_init = nn.Parameter(torch.zeros(1, 384), requires_grad=True)
 
-        self.attn_norm = nn.LayerNorm(384 * len(degradations))
+        self.attn_norm = nn.LayerNorm(384)
         self.group_attn_ffn = nn.Sequential(
-            nn.Linear(384 * len(degradations), 384 * len(degradations) * 4),
+            nn.Linear(384 , 384),
             nn.GELU(),
-            nn.Linear(384 * len(degradations) * 4, 384 * len(degradations))
+            nn.Linear(384, 384)
         )
-        self.norm1 = nn.LayerNorm(512 + 512)
-        self.norm2 = nn.LayerNorm(512)
-        self.norm3 = nn.LayerNorm(384)
-        # self.norm4 = nn.LayerNorm(384 * len(degradations))
+        self.norm1 = nn.LayerNorm(512)
+        self.norm2 = nn.LayerNorm(384)
 
     def mulithead(self, da_metrics, img_feature):
-        group_attn = []
-        for i in range(da_metrics.shape[1]):
-            da_metric_i = da_metrics[:, i, :]  # [bs, 384]
-            attn = self.diff_attention(da_metric_i, img_feature)  # [bs, 384]
-            # attn = self.diff_attention(da_metrics[i].unsqueeze(0), da_img_feature)
-            group_attn.append(attn)
-        group_attn = torch.cat(group_attn, dim=-1)  # [bs, num_group * C]
+        group_attn = self.diff_attention(da_metrics, img_feature)  # [bs, 206, 384]
         # Norm 和 FFN
         group_attn = self.attn_norm(group_attn)
 
@@ -397,7 +362,7 @@ class dascore_vit_models(nn.Module):
 
     def forward(self, x):
         # pdb.set_trace()
-        img_feature = self.backbone(x) # [1, 384]
+        img_feature = self.backbone(x) # [1, 576, 384]
         # da_img = 
         da_img = F.interpolate(x, size=(224, 224), mode='bilinear', align_corners=False)
         mean = torch.tensor([0.48145466, 0.4578275, 0.40821073], device=da_img.device).view(1, 3, 1, 1)
@@ -408,24 +373,22 @@ class dascore_vit_models(nn.Module):
         clip_image_feature, da_img_feature = self.head.encode_image(da_img, control= True) # shape=[1, 512] 
         da_img_feature = da_img_feature / da_img_feature.norm(dim=-1, keepdim=True)
         text_features = text_features / text_features.norm(dim=-1, keepdim=True)
-
-        learnerable_token_expand = self.learnerable_token.expand(da_img_feature.shape[0], -1)  # [52, 512]
-        da_img_feature = torch.cat([da_img_feature, learnerable_token_expand], dim=-1) # [52, 1024]
-
-        da_img_feature = self.norm1(da_img_feature)  # [52, 512]
-        da_img_feature = self.L1(da_img_feature) # shape=[52, 512]
         
         # 先扩展维度
         text_features_expand = text_features.unsqueeze(0).expand(da_img_feature.shape[0], -1, -1)  # [52, nclass, 512]
         da_img_feature_expand = da_img_feature.unsqueeze(1)  # [52, 1, 512]
 
         # 按元素相乘
-        da_metrics = text_features_expand * da_img_feature_expand  # [52, nclass, 512]
-        da_metrics = self.norm2(da_metrics)  # [52, n_class, 512]
-        da_metrics = self.L2(da_metrics) # shape=[bs, n_class, 384]
+        da_metrics = text_features_expand * da_img_feature_expand  # [bs, nclass, 512]
+        da_metrics = self.norm1(da_metrics)  # [52, n_class, 512]
+        da_metrics = self.L1(da_metrics) # shape=[bs, n_class, 384]
         
-        img_feature = self.norm3(img_feature)  # [52, 384]
-        out = self.mulithead(da_metrics, img_feature) # shape=[bs, n_class, 384]
+        img_feature = self.norm2(img_feature)  # [52, 576, 384]
+
+        out = self.mulithead(da_metrics, img_feature) # shape=[bs, 576+n_class, 384]
+        out = out.permute(0, 2, 1)  # [52, 384, n_class+576]
+        out = self.L2(out)  # [52, 384, 1]
+        out = out.squeeze(-1)  # [52, 384]
         # out = self.norm4(out)  # [52, n_class* 384]
         out = self.score(out)
         return out

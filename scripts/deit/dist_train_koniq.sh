@@ -5,6 +5,6 @@ CUDA_VISIBLE_DEVICES=4,5,6 OMP_NUM_THREADS=1 torchrun --nnodes 1 --nproc_per_nod
 --data-path /home/fubohan/Dataset/koniq-10k \
 --output results \
 --tensorboard \
---tag full_k10_deit_daclip_more_norm \
+--tag full_k10_deit_daclip_v2 \
 --repeat \
 --rnum 10

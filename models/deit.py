@@ -261,7 +261,7 @@ class vit_models(nn.Module):
             
         x = self.norm(x)  # [1, 197, 384]
         # return x[:, 0]
-        return x[:, 1:, :]  # [bs, 196, 384] remove cls token
+        return x  # [bs, 196, 384] remove cls token
 
     def forward(self, x):
 
@@ -280,12 +280,11 @@ class diff_attention(nn.Module):
         self.W_q2 = nn.Linear(embedding_dim, embedding_dim)
         self.W_k1 = nn.Linear(embedding_dim, embedding_dim)
         self.W_k2 = nn.Linear(embedding_dim, embedding_dim)
-        self.W_v = nn.Linear(embedding_dim, embedding_dim)  # Changed to output d dimensions
+        self.W_v = nn.Linear(embedding_dim * 2, embedding_dim)  # Changed to output d dimensions
         self.alpha = nn.Parameter(torch.tensor(alpha), requires_grad=True)
         # self.alpha_fc = nn.Linear(embedding_dim * 2, 1)
         self.embedding_dim = embedding_dim
-        # self.norm1 = nn.LayerNorm(embedding_dim)
-        # self.norm2 = nn.LayerNorm(embedding_dim)
+        # self.score_token = nn.Parameter(torch.zeros(1, 1, embedding_dim))
 
     def forward(self, X1, X2):
         """
@@ -298,13 +297,13 @@ class diff_attention(nn.Module):
         Returns:
         - Tensor: Output tensor.
         """
-        # X1 = self.norm1(X1)
-        # X2 = self.norm2(X2)
-        X = torch.cat([X1, X2], dim=1)
-        Q1 = self.W_q1(X)
-        K1 = self.W_k1(X)
-        Q2 = self.W_q2(X)
-        K2 = self.W_k2(X)      
+        X1 = X1.unsqueeze(1)  # [bs, 1, 384]
+        X1 = X1.expand(-1, X2.shape[1], -1)  # [bs, 576, 384]
+        X = torch.cat([X1, X2], dim=-1)
+        Q1 = self.W_q1(X1)
+        K1 = self.W_k1(X1)
+        Q2 = self.W_q2(X2)
+        K2 = self.W_k2(X2)      
         V = self.W_v(X)
 
         s = 1 / sqrt(self.embedding_dim)
@@ -318,7 +317,8 @@ class diff_attention(nn.Module):
         # alpha = torch.relu(self.alpha_fc(X))
         # result = (A2_softmax *(1 - self.alpha * A1_softmax)) @ V   
         result = (A2_softmax - self.alpha * A1_softmax) @ V
-        return result #[bs, 586, 384]
+        # return result[:, 0] #[bs, 586, 384]
+        return result #[bs, 576, 384]
 
 
 # DeiT III: Revenge of the ViT (https://arxiv.org/abs/2204.07118)
@@ -333,29 +333,36 @@ class dascore_vit_models(nn.Module):
         degradations = ['motion-blurry','hazy','jpeg-compressed','low-light','noisy','raindrop','rainy','shadowed','snowy','uncompleted']
 
         self.L1 = nn.Linear(512, 384)
-        self.L2 = nn.Linear(576 + len(degradations), 1)  # 196 is the number of patches in ViT-B-32
-        self.diff_attention = diff_attention(384)
+        self.L2 = nn.Linear(576, 1)  # 196 is the number of patches in ViT-B-32
+        self.diff_attention = diff_attention(384)  # 384 is the embedding dimension of ViT-B-32
         self.score = nn.Linear(384, 1)
 
         tokenizer = open_clip.get_tokenizer('ViT-B-32')
         self.text = tokenizer(degradations).cuda()
         self.lamda_init = nn.Parameter(torch.zeros(1, 384), requires_grad=True)
 
-        self.attn_norm = nn.LayerNorm(384)
+        self.attn_norm = nn.LayerNorm(384 * len(degradations))
         self.group_attn_ffn = nn.Sequential(
-            nn.Linear(384 , 384),
+            nn.Linear(384 * len(degradations), 384 * len(degradations)),
             nn.GELU(),
-            nn.Linear(384, 384)
+            nn.Linear(384 * len(degradations), 384)
         )
         self.norm1 = nn.LayerNorm(512)
         self.norm2 = nn.LayerNorm(384)
+        self.norm3 = nn.LayerNorm(384)
 
     def mulithead(self, da_metrics, img_feature):
-        group_attn = self.diff_attention(da_metrics, img_feature)  # [bs, 206, 384]
+        group_attn = []
+        for i in range(da_metrics.shape[1]):
+            diff_attn = self.diff_attention(da_metrics[:, i, :], img_feature)  # [bs, 576, 384]
+            
+            group_attn.append(diff_attn)
+        group_attn = torch.cat(group_attn, dim=-1)  # [bs, 576, num_group * C]
         # Norm 和 FFN
-        group_attn = self.attn_norm(group_attn)
-
+        group_attn = self.attn_norm(group_attn)  # [bs, 576, 384]
+        # group_attn = self.attn_norm(group_attn)  # [bs, 576, C]
         group_attn = self.group_attn_ffn(group_attn)
+        # 
         group_attn = group_attn * (1 - self.lamda_init)
         return group_attn
         
@@ -385,11 +392,12 @@ class dascore_vit_models(nn.Module):
         
         img_feature = self.norm2(img_feature)  # [52, 576, 384]
 
-        out = self.mulithead(da_metrics, img_feature) # shape=[bs, 576+n_class, 384]
-        out = out.permute(0, 2, 1)  # [52, 384, n_class+576]
-        out = self.L2(out)  # [52, 384, 1]
-        out = out.squeeze(-1)  # [52, 384]
-        # out = self.norm4(out)  # [52, n_class* 384]
+        out = self.mulithead(da_metrics, img_feature) # shape=[bs, 576, 384]
+        out = out[:, 0, :]
+        # out = out.permute(0, 2, 1)  # [52, 384, 576]
+        # out = self.L2(out)  # [52, 384, 1]
+        # out = out.squeeze(-1)  # [52, 384]
+        # out = self.norm3(out)  # [52, 384]
         out = self.score(out)
         return out
 

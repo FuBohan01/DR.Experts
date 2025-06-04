@@ -601,16 +601,16 @@ if __name__ == "__main__":
         # config.OUTPUT = (config.OUTPUT).replace(
         #     config.TAG, "dinet_spaq_refo_fixed_LVFP4TP15"
         # )
-        # config.OUTPUT = (
-        #     (config.OUTPUT)
-        #     .replace(config.TAG, "full_livec_daclip_multihead[test1]")
-        # )
         config.OUTPUT = (
             (config.OUTPUT)
-            .replace(config.TAG, "full_k10_deit")
-            # .replace("results", "/mnt/iMVR/guanyi/dataset/IQA/results")
-            # .replace("/livec", "/dev")
+            .replace(config.TAG, "full_livec_daclip_multihead[test1]")
         )
+        # config.OUTPUT = (
+        #     (config.OUTPUT)
+        #     .replace(config.TAG, "full_k10_deit")
+        #     # .replace("results", "/mnt/iMVR/guanyi/dataset/IQA/results")
+        #     # .replace("/livec", "/dev")
+        # )
         config.freeze()
 
         with open(os.path.join(config.OUTPUT, filename), "rb") as f:

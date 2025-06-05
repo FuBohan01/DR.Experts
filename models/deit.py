@@ -12,6 +12,7 @@ from timm.models.layers import DropPath, to_2tuple, trunc_normal_
 from timm.models.registry import register_model
 
 from . import open_clip
+from .kan import *
 # import open_clip
 from math import sqrt
 import pdb
@@ -335,7 +336,7 @@ class dascore_vit_models(nn.Module):
         self.L1 = nn.Linear(512, 384)
         self.L2 = nn.Linear(576, 1)  # 196 is the number of patches in ViT-B-32
         self.diff_attention = diff_attention(384)  # 384 is the embedding dimension of ViT-B-32
-        self.score = nn.Linear(384, 1)
+        self.score = nn.Linear(384, 224)
 
         tokenizer = open_clip.get_tokenizer('ViT-B-32')
         self.text = tokenizer(degradations).cuda()
@@ -350,6 +351,8 @@ class dascore_vit_models(nn.Module):
         self.norm1 = nn.LayerNorm(512)
         self.norm2 = nn.LayerNorm(384)
         self.norm3 = nn.LayerNorm(384)
+
+        self.kan = KAN(width=[224,5,1], grid=3, k=3, seed=1, auto_save=False, device='cuda')
 
     def mulithead(self, da_metrics, img_feature):
         group_attn = []
@@ -399,6 +402,7 @@ class dascore_vit_models(nn.Module):
         # out = out.squeeze(-1)  # [52, 384]
         # out = self.norm3(out)  # [52, 384]
         out = self.score(out)
+        out = self.kan(out)
         return out
 
 def build_deit_large(pretrained=False, img_size=384, pretrained_21k=True, **kwargs):

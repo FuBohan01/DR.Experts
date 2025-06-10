@@ -11,6 +11,7 @@ from timm.models.vision_transformer import Mlp, PatchEmbed , _cfg
 from timm.models.layers import DropPath, to_2tuple, trunc_normal_
 from timm.models.registry import register_model
 
+from .starnet import ConvBN
 from . import open_clip
 from .kan import *
 # import open_clip
@@ -321,6 +322,39 @@ class diff_attention(nn.Module):
         # return result[:, 0] #[bs, 586, 384]
         return result #[bs, 576, 384]
 
+class KAN_Layer(nn.Module):
+    def __init__(self, dim, dim_in):
+        super().__init__()
+        self.dim_reduce = ConvBN(dim_in, dim, 1, with_bn=False)
+        self.dwconv = ConvBN(dim, dim, 7, 1, (7 - 1) // 2, groups=dim, with_bn=True)
+        self.f2 = ConvBN(dim, dim, 1, with_bn=False)
+        # self.f2 = ConvBN(dim, dim, 1, with_bn=False)
+        self.f1 = KAN(width=[dim, 5, dim], grid=5, k=3, seed=1, auto_save=False, device='cuda')
+        self.g = ConvBN(dim, dim, 1, with_bn=True)
+        # self.g = KAN(width=[dim, dim], grid=5, k=3, seed=1, auto_save=False, device='cuda')
+        self.dwconv2 = ConvBN(dim, dim, 7, 1, (7 - 1) // 2, groups=dim, with_bn=False)
+        self.act = nn.ReLU6()
+
+    def forward(self, x):# [bs, 577, 384]
+        x = self.dim_reduce(x)  # Reduce dimension first
+        input = x
+        x = self.dwconv(x)
+        bs, dim, h, w = x.shape
+        x_k = x
+        x_k = x_k.permute(0, 2, 3, 1)       # [3, 14, 14, 32]
+        x_k = x_k.reshape(bs*h*w, dim).contiguous()     # [3* 196, 32]
+
+        x1, x2 = self.f1(x_k), self.f2(x)
+        
+        x1 = x1.reshape(bs, h*w, dim).contiguous()  # [3, 196, 32]
+        x1 = x1.permute(0, 2, 1)       # [3, 32, 196]
+        x1 = x1.reshape(bs, dim, h, w).contiguous()    # [3, 32, 14, 14]
+
+        x = x1 * x2
+        x = self.g(x)           
+        x = self.dwconv2(x)
+        x = input + x
+        return x
 
 # DeiT III: Revenge of the ViT (https://arxiv.org/abs/2204.07118)
 class dascore_vit_models(nn.Module):
@@ -336,10 +370,9 @@ class dascore_vit_models(nn.Module):
         self.L1 = nn.Linear(512, 384)
         self.L2 = nn.Linear(576, 1)  # 196 is the number of patches in ViT-B-32
         self.diff_attention = diff_attention(384)  # 384 is the embedding dimension of ViT-B-32
-        self.score = nn.Linear(384, 224)
 
         tokenizer = open_clip.get_tokenizer('ViT-B-32')
-        self.text = tokenizer(degradations).cuda()
+        self.text = tokenizer(degradations).cuda()  
         self.lamda_init = nn.Parameter(torch.zeros(1, 384), requires_grad=True)
 
         self.attn_norm = nn.LayerNorm(384 * len(degradations))
@@ -349,20 +382,26 @@ class dascore_vit_models(nn.Module):
             nn.Linear(384 * len(degradations), 384)
         )
         self.norm1 = nn.LayerNorm(512)
-        self.norm2 = nn.LayerNorm(384)
-        self.norm3 = nn.LayerNorm(384)
+        # self.norm2 = nn.LayerNorm(384)
+        self.norm3 = nn.LayerNorm(576)
 
-        self.kan = KAN(width=[224,5,1], grid=3, k=3, seed=1, auto_save=False, device='cuda')
+        # self.kan = KAN(width=[16,1], grid=5, k=3, seed=1, auto_save=False, device='cuda')
+        self.kan_layer = KAN_Layer(32, 384)  # 384 is the embedding dimension of ViT-B-32
+        # self.kan_layer = nn.Linear(384, 32)  # 384 is the embedding dimension of ViT-B-32, 32 is the output dimension
+        self.score = nn.Linear(32, 1)
 
     def mulithead(self, da_metrics, img_feature):
+        bs = da_metrics.shape[0]  # batch size
         group_attn = []
         for i in range(da_metrics.shape[1]):
-            diff_attn = self.diff_attention(da_metrics[:, i, :], img_feature)  # [bs, 576, 384]
-            
-            group_attn.append(diff_attn)
-        group_attn = torch.cat(group_attn, dim=-1)  # [bs, 576, num_group * C]
-        # Norm 和 FFN
-        group_attn = self.attn_norm(group_attn)  # [bs, 576, 384]
+            diff_attn = self.diff_attention(da_metrics[:, i, :], img_feature)  # [bs, 577, 384]
+
+
+            group_attn.append(diff_attn)  
+        group_attn = torch.cat(group_attn, dim=-1)  # [bs, 576, 16 * nclass]
+    
+        # Norm 和 FFN 
+        group_attn = self.attn_norm(group_attn)  # [bs, 576, 3840]
         # group_attn = self.attn_norm(group_attn)  # [bs, 576, C]
         group_attn = self.group_attn_ffn(group_attn)
         # 
@@ -372,7 +411,8 @@ class dascore_vit_models(nn.Module):
 
     def forward(self, x):
         # pdb.set_trace()
-        img_feature = self.backbone(x) # [1, 576, 384]
+        bs = x.shape[0]  # batch size
+        img_feature = self.backbone(x) # [1, 577, 384]
         # da_img = 
         da_img = F.interpolate(x, size=(224, 224), mode='bilinear', align_corners=False)
         mean = torch.tensor([0.48145466, 0.4578275, 0.40821073], device=da_img.device).view(1, 3, 1, 1)
@@ -393,16 +433,28 @@ class dascore_vit_models(nn.Module):
         da_metrics = self.norm1(da_metrics)  # [52, n_class, 512]
         da_metrics = self.L1(da_metrics) # shape=[bs, n_class, 384]
         
-        img_feature = self.norm2(img_feature)  # [52, 576, 384]
+        # img_feature = self.norm2(img_feature)  # [52, 576, 384]
 
         out = self.mulithead(da_metrics, img_feature) # shape=[bs, 576, 384]
-        out = out[:, 0, :]
-        # out = out.permute(0, 2, 1)  # [52, 384, 576]
-        # out = self.L2(out)  # [52, 384, 1]
-        # out = out.squeeze(-1)  # [52, 384]
-        # out = self.norm3(out)  # [52, 384]
-        out = self.score(out)
-        out = self.kan(out)
+        out_score_token = out[:, 0, :]
+        out_feature = out[:, 1:, :]  # [52, 576, 384]
+        out_diff_feat = out_score_token.unsqueeze(1) + out_feature # [bs, 1, 384] + [bs, 576, 384] -> [bs, 576, 384]
+        out_diff_feat = out_diff_feat.permute(0, 2, 1)        # [bs, 384, 576]   
+        out_diff_feat = out_diff_feat.reshape(bs, 384, 24, 24).contiguous()    # [bs, 384, 24, 24]
+
+        out_diff_feat = self.kan_layer(out_diff_feat)  # [bs, 32, 24, 24]
+        out_diff_feat = out_diff_feat.flatten(2) # [bs, 32, 576]
+        out_diff_feat = self.L2(out_diff_feat)  # [bs, 32, 1]
+        out_diff_feat = out_diff_feat.squeeze(-1)  # [bs, 32]
+        out = self.score(out_diff_feat)  # [bs, 1]
+
+        # out = out.permute(0, 2, 1)  # [52, 16, 576]
+        # # out = self.norm3(out)  # [52, 16, 576]
+        # out = self.L2(out)  # [52, 16, 1]
+        # # out = self.score(out)
+        # out = out.squeeze(-1)  # [52, 16]
+
+        # out = self.kan(out)
         return out
 
 def build_deit_large(pretrained=False, img_size=384, pretrained_21k=True, **kwargs):

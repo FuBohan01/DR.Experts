@@ -199,20 +199,20 @@ def build_star(
     return model
 
 if __name__ == "__main__":
-    model = iqa(32, [3, 3, 12, 5],num_class=1)
+    model = StarNet(32, [1, 2, 6, 2])
     print(model)
-    checkpoint = torch.load(
-        "/home/fubohan/Code/DIQA-dev/checkpoint/starnet_s4.pth", map_location="cpu", weights_only=False
-    )
-    state_dict = checkpoint["state_dict"]
-    del state_dict["norm.weight"]
-    del state_dict["norm.bias"]
-    del state_dict["norm.running_mean"]
-    del state_dict["norm.running_var"]
-    del state_dict["norm.num_batches_tracked"]
-    del state_dict["head.weight"]
-    del state_dict["head.bias"]
-    model.backbone.load_state_dict(state_dict, strict=False)
+    # checkpoint = torch.load(
+    #     "/home/fubohan/Code/DIQA-dev/checkpoint/starnet_s4.pth", map_location="cpu", weights_only=False
+    # )
+    # state_dict = checkpoint["state_dict"]
+    # del state_dict["norm.weight"]
+    # del state_dict["norm.bias"]
+    # del state_dict["norm.running_mean"]
+    # del state_dict["norm.running_var"]
+    # del state_dict["norm.num_batches_tracked"]
+    # del state_dict["head.weight"]
+    # del state_dict["head.bias"]
+    # model.backbone.load_state_dict(state_dict, strict=False)
     x = torch.randn(2, 3, 224, 224)
     from torchinfo import summary
 

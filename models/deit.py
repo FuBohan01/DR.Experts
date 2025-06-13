@@ -329,7 +329,7 @@ class KAN_Layer(nn.Module):
         self.dwconv = ConvBN(dim, dim, 7, 1, (7 - 1) // 2, groups=dim, with_bn=True)
         self.f2 = ConvBN(dim, dim, 1, with_bn=False)
         # self.f2 = ConvBN(dim, dim, 1, with_bn=False)
-        self.f1 = KAN(width=[dim, 5, dim], grid=5, k=3, seed=1, auto_save=False, device='cuda')
+        self.f1 = KAN(width=[dim, dim], grid=5, k=3, seed=1, auto_save=False, device='cuda')
         self.g = ConvBN(dim, dim, 1, with_bn=True)
         # self.g = KAN(width=[dim, dim], grid=5, k=3, seed=1, auto_save=False, device='cuda')
         self.dwconv2 = ConvBN(dim, dim, 7, 1, (7 - 1) // 2, groups=dim, with_bn=False)
@@ -373,20 +373,20 @@ class dascore_vit_models(nn.Module):
 
         tokenizer = open_clip.get_tokenizer('ViT-B-32')
         self.text = tokenizer(degradations).cuda()  
-        self.lamda_init = nn.Parameter(torch.zeros(1, 384), requires_grad=True)
+        self.lamda_init = nn.Parameter(torch.zeros(1, 32), requires_grad=True)
 
-        self.attn_norm = nn.LayerNorm(384 * len(degradations))
+        self.attn_norm = nn.LayerNorm(32 * len(degradations))
         self.group_attn_ffn = nn.Sequential(
-            nn.Linear(384 * len(degradations), 384 * len(degradations)),
+            nn.Linear(32 * len(degradations), 32 * len(degradations)),
             nn.GELU(),
-            nn.Linear(384 * len(degradations), 384)
+            nn.Linear(32 * len(degradations), 32)
         )
         self.norm1 = nn.LayerNorm(512)
         # self.norm2 = nn.LayerNorm(384)
         self.norm3 = nn.LayerNorm(576)
 
         # self.kan = KAN(width=[16,1], grid=5, k=3, seed=1, auto_save=False, device='cuda')
-        self.kan_layer = KAN_Layer(32, 384)  # 384 is the embedding dimension of ViT-B-32
+        self.kan_layer_list = nn.ModuleList([KAN_Layer(32, 384) for i in range(len(degradations))]) # 384 is the embedding dimension of ViT-B-32
         # self.kan_layer = nn.Linear(384, 32)  # 384 is the embedding dimension of ViT-B-32, 32 is the output dimension
         self.score = nn.Linear(32, 1)
 
@@ -395,15 +395,23 @@ class dascore_vit_models(nn.Module):
         group_attn = []
         for i in range(da_metrics.shape[1]):
             diff_attn = self.diff_attention(da_metrics[:, i, :], img_feature)  # [bs, 577, 384]
+            diff_attn_score_token = diff_attn[:, 0, :]
+            diff_attn = diff_attn[:, 1:, :]  # [52, 576, 384]
+            diff_attn = diff_attn_score_token.unsqueeze(1) + diff_attn # [bs, 1, 384] + [bs, 576, 384] -> [bs, 576, 384]
+            diff_attn = diff_attn.permute(0, 2, 1)        # [bs, 384, 576]   
+            diff_attn = diff_attn.reshape(bs, 384, 24, 24).contiguous()    # [bs, 384, 24, 24]
 
+            diff_attn = self.kan_layer_list[i](diff_attn)  # [bs, 32, 24, 24]
+            diff_attn = diff_attn.flatten(2) # [bs, 32, 576]
+            diff_attn = diff_attn.permute(0, 2, 1)
 
             group_attn.append(diff_attn)  
-        group_attn = torch.cat(group_attn, dim=-1)  # [bs, 576, 16 * nclass]
+        group_attn = torch.cat(group_attn, dim=-1)  # [bs, 576, 32 * nclass]
     
         # Norm 和 FFN 
-        group_attn = self.attn_norm(group_attn)  # [bs, 576, 3840]
-        # group_attn = self.attn_norm(group_attn)  # [bs, 576, C]
-        group_attn = self.group_attn_ffn(group_attn)
+        group_attn = self.attn_norm(group_attn)  # [bs, 576, 32 * nclass]
+        # group_attn = self.attn_norm(group_attn)  
+        group_attn = self.group_attn_ffn(group_attn) # [bs, 576, 32]
         # 
         group_attn = group_attn * (1 - self.lamda_init)
         return group_attn
@@ -435,25 +443,18 @@ class dascore_vit_models(nn.Module):
         
         # img_feature = self.norm2(img_feature)  # [52, 576, 384]
 
-        out = self.mulithead(da_metrics, img_feature) # shape=[bs, 576, 384]
-        out_score_token = out[:, 0, :]
-        out_feature = out[:, 1:, :]  # [52, 576, 384]
-        out_diff_feat = out_score_token.unsqueeze(1) + out_feature # [bs, 1, 384] + [bs, 576, 384] -> [bs, 576, 384]
-        out_diff_feat = out_diff_feat.permute(0, 2, 1)        # [bs, 384, 576]   
-        out_diff_feat = out_diff_feat.reshape(bs, 384, 24, 24).contiguous()    # [bs, 384, 24, 24]
+        out = self.mulithead(da_metrics, img_feature) # shape=[bs, 576, 32]
 
-        out_diff_feat = self.kan_layer(out_diff_feat)  # [bs, 32, 24, 24]
-        out_diff_feat = out_diff_feat.flatten(2) # [bs, 32, 576]
-        out_diff_feat = self.L2(out_diff_feat)  # [bs, 32, 1]
-        out_diff_feat = out_diff_feat.squeeze(-1)  # [bs, 32]
-        out = self.score(out_diff_feat)  # [bs, 1]
+        # out_diff_feat = self.L2(out_diff_feat)  # [bs, 32, 1]
+        # out_diff_feat = out_diff_feat.squeeze(-1)  # [bs, 32]
+        
 
-        # out = out.permute(0, 2, 1)  # [52, 16, 576]
+        out = out.permute(0, 2, 1)  # [52, 32, 576]
         # # out = self.norm3(out)  # [52, 16, 576]
-        # out = self.L2(out)  # [52, 16, 1]
+        out = self.L2(out)  # [52, 16, 1]
         # # out = self.score(out)
-        # out = out.squeeze(-1)  # [52, 16]
-
+        out = out.squeeze(-1)  # [52, 32]
+        out = self.score(out)  # [bs, 1]
         # out = self.kan(out)
         return out
 

@@ -372,46 +372,39 @@ class dascore_vit_models(nn.Module):
         self.diff_attention = diff_attention(384)  # 384 is the embedding dimension of ViT-B-32
 
         tokenizer = open_clip.get_tokenizer('ViT-B-32')
-        self.text = tokenizer(degradations).cuda()  
-        self.lamda_init = nn.Parameter(torch.zeros(1, 32), requires_grad=True)
+        self.text = tokenizer(degradations).cuda()
+        self.lamda_init = nn.Parameter(torch.zeros(1, 16), requires_grad=True)
 
-        self.attn_norm = nn.LayerNorm(32 * len(degradations))
+        self.attn_norm = nn.LayerNorm(384)
         self.group_attn_ffn = nn.Sequential(
-            nn.Linear(32 * len(degradations), 32 * len(degradations)),
+            nn.Linear(384, 384),
             nn.GELU(),
-            nn.Linear(32 * len(degradations), 32)
+            nn.Linear(384, 16)
         )
         self.norm1 = nn.LayerNorm(512)
         # self.norm2 = nn.LayerNorm(384)
         self.norm3 = nn.LayerNorm(576)
 
-        # self.kan = KAN(width=[16,1], grid=5, k=3, seed=1, auto_save=False, device='cuda')
-        self.kan_layer_list = nn.ModuleList([KAN_Layer(32, 384) for i in range(len(degradations))]) # 384 is the embedding dimension of ViT-B-32
+        self.kan = KAN(width=[10,5,1], grid=5, k=3, seed=1, auto_save=False, device='cuda')
+        # self.kan_layer_list = nn.ModuleList([KAN_Layer(32, 384) for i in range(len(degradations))]) # 384 is the embedding dimension of ViT-B-32
         # self.kan_layer = nn.Linear(384, 32)  # 384 is the embedding dimension of ViT-B-32, 32 is the output dimension
-        self.score = nn.Linear(32, 1)
+        self.L3 = nn.Linear(384, 16)
+        self.score = nn.Linear(16, 1)
 
     def mulithead(self, da_metrics, img_feature):
         bs = da_metrics.shape[0]  # batch size
         group_attn = []
         for i in range(da_metrics.shape[1]):
             diff_attn = self.diff_attention(da_metrics[:, i, :], img_feature)  # [bs, 577, 384]
-            diff_attn_score_token = diff_attn[:, 0, :]
-            diff_attn = diff_attn[:, 1:, :]  # [52, 576, 384]
-            diff_attn = diff_attn_score_token.unsqueeze(1) + diff_attn # [bs, 1, 384] + [bs, 576, 384] -> [bs, 576, 384]
-            diff_attn = diff_attn.permute(0, 2, 1)        # [bs, 384, 576]   
-            diff_attn = diff_attn.reshape(bs, 384, 24, 24).contiguous()    # [bs, 384, 24, 24]
-
-            diff_attn = self.kan_layer_list[i](diff_attn)  # [bs, 32, 24, 24]
-            diff_attn = diff_attn.flatten(2) # [bs, 32, 576]
-            diff_attn = diff_attn.permute(0, 2, 1)
 
             group_attn.append(diff_attn)  
-        group_attn = torch.cat(group_attn, dim=-1)  # [bs, 576, 32 * nclass]
-    
+        # group_attn = torch.cat(group_attn, dim=-1)  # [bs, 577, 384 * nclass]
+        group_attn = torch.stack(group_attn) 
+        
         # Norm 和 FFN 
-        group_attn = self.attn_norm(group_attn)  # [bs, 576, 32 * nclass]
+        group_attn = self.attn_norm(group_attn)  # [10, bs, 577, 384]
         # group_attn = self.attn_norm(group_attn)  
-        group_attn = self.group_attn_ffn(group_attn) # [bs, 576, 32]
+        group_attn = self.group_attn_ffn(group_attn) # [10, bs, 577, 16]
         # 
         group_attn = group_attn * (1 - self.lamda_init)
         return group_attn
@@ -443,20 +436,19 @@ class dascore_vit_models(nn.Module):
         
         # img_feature = self.norm2(img_feature)  # [52, 576, 384]
 
-        out = self.mulithead(da_metrics, img_feature) # shape=[bs, 576, 32]
+        out = self.mulithead(da_metrics, img_feature) # shape=[10, bs, 577, 16]
 
-        # out_diff_feat = self.L2(out_diff_feat)  # [bs, 32, 1]
-        # out_diff_feat = out_diff_feat.squeeze(-1)  # [bs, 32]
+        out_score = out[:, :, 0, :] # [10, bs, 16]
+        out_score = out_score.permute(1, 2, 0)
+        out_score = out_score.reshape(bs * 16, 10).contiguous()
+        out_score = self.kan(out_score) 
+        out_score = out_score.reshape(bs, 16).contiguous()
+        img_score = self.L3(img_feature[:, 0, :]) #[bs, 16]
+        score = img_score - out_score
         
-
-        out = out.permute(0, 2, 1)  # [52, 32, 576]
-        # # out = self.norm3(out)  # [52, 16, 576]
-        out = self.L2(out)  # [52, 16, 1]
-        # # out = self.score(out)
-        out = out.squeeze(-1)  # [52, 32]
-        out = self.score(out)  # [bs, 1]
+        score = self.score(score)  # [bs, 1]
         # out = self.kan(out)
-        return out
+        return score
 
 def build_deit_large(pretrained=False, img_size=384, pretrained_21k=True, **kwargs):
     # 创建主模型

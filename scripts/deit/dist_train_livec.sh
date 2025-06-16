@@ -14,6 +14,6 @@ CUDA_VISIBLE_DEVICES=1,2,3 OMP_NUM_THREADS=6 torchrun --nnodes 1 --nproc_per_nod
 --data-path /media/hdd1/hzh/iqa-dataset/livec \
 --output results \
 --tensorboard \
---tag full_livec_deit_daclip_v2_diffv3_plan4 \
+--tag full_livec_deit_daclip_v2_diffv3_decoder \
 --repeat \
 --rnum 10

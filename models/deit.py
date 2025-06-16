@@ -363,6 +363,17 @@ class dascore_vit_models(nn.Module):
         self.backbone = vit_models(img_size = img_size, patch_size=16, embed_dim=384, depth=12, num_heads=6, mlp_ratio=4, qkv_bias=True,
                                 norm_layer=partial(nn.LayerNorm, eps=1e-6),block_layers=Layer_scale_init_Block,num_classes=1)
         
+        bunch_layer = nn.TransformerDecoderLayer(
+            d_model=384,
+            dropout=0.0,
+            nhead=6,
+            activation=F.gelu,
+            batch_first=True,
+            dim_feedforward=(384 * 4),
+            norm_first=True,
+        )
+        self.decoder = nn.TransformerDecoder(bunch_layer, num_layers=1)
+        
         checkpoint = '/home/fubohan/Code/DIQA/checkpoint/daclip_ViT-B-32.pt'
         self.head, self.head_preprocess = open_clip.create_model_from_pretrained('daclip_ViT-B-32', pretrained=checkpoint)
         degradations = ['motion-blurry','hazy','jpeg-compressed','low-light','noisy','raindrop','rainy','shadowed','snowy','uncompleted']
@@ -373,23 +384,24 @@ class dascore_vit_models(nn.Module):
 
         tokenizer = open_clip.get_tokenizer('ViT-B-32')
         self.text = tokenizer(degradations).cuda()
-        self.lamda_init = nn.Parameter(torch.zeros(1, 16), requires_grad=True)
+        self.lamda_init = nn.Parameter(torch.zeros(1, 384), requires_grad=True)
 
         self.attn_norm = nn.LayerNorm(384)
         self.group_attn_ffn = nn.Sequential(
             nn.Linear(384, 384),
             nn.GELU(),
-            nn.Linear(384, 16)
+            nn.Linear(384, 384)
         )
         self.norm1 = nn.LayerNorm(512)
         # self.norm2 = nn.LayerNorm(384)
         self.norm3 = nn.LayerNorm(576)
 
-        self.kan = KAN(width=[10,5,1], grid=5, k=3, seed=1, auto_save=False, device='cuda')
+        self.kan = KAN(width=[10,5,10], grid=5, k=3, seed=1, auto_save=False, device='cuda')
         # self.kan_layer_list = nn.ModuleList([KAN_Layer(32, 384) for i in range(len(degradations))]) # 384 is the embedding dimension of ViT-B-32
         # self.kan_layer = nn.Linear(384, 32)  # 384 is the embedding dimension of ViT-B-32, 32 is the output dimension
         self.L3 = nn.Linear(384, 16)
-        self.score = nn.Linear(16, 1)
+        self.L4 = nn.Linear(10, 1)
+        self.score = nn.Linear(384, 1)
 
     def mulithead(self, da_metrics, img_feature):
         bs = da_metrics.shape[0]  # batch size
@@ -414,6 +426,7 @@ class dascore_vit_models(nn.Module):
         # pdb.set_trace()
         bs = x.shape[0]  # batch size
         img_feature = self.backbone(x) # [1, 577, 384]
+ 
         # da_img = 
         da_img = F.interpolate(x, size=(224, 224), mode='bilinear', align_corners=False)
         mean = torch.tensor([0.48145466, 0.4578275, 0.40821073], device=da_img.device).view(1, 3, 1, 1)
@@ -436,19 +449,18 @@ class dascore_vit_models(nn.Module):
         
         # img_feature = self.norm2(img_feature)  # [52, 576, 384]
 
-        out = self.mulithead(da_metrics, img_feature) # shape=[10, bs, 577, 16]
+        out = self.mulithead(da_metrics, img_feature) # shape=[10, bs, 577, 384]
 
-        out_score = out[:, :, 0, :] # [10, bs, 16]
-        out_score = out_score.permute(1, 2, 0)
-        out_score = out_score.reshape(bs * 16, 10).contiguous()
-        out_score = self.kan(out_score) 
-        out_score = out_score.reshape(bs, 16).contiguous()
-        img_score = self.L3(img_feature[:, 0, :]) #[bs, 16]
-        score = img_score - out_score
-        
-        score = self.score(score)  # [bs, 1]
+        out = out[:, :, 0, :] #[10, bs, 384]
+        out = out.permute(1, 0, 2) #[bs, 10, 384]
+        vit_cls_token = img_feature[:, 0, :].unsqueeze(1).expand(-1, 10, -1)
+        out = out * vit_cls_token #[bs, 10, 384]
+
+        score = self.decoder(out, img_feature[:, 1:, :]) 
+        score = self.score(score)  # [bs, 10, 1]
+        score = score.view(bs, -1).mean(dim=1)
         # out = self.kan(out)
-        return score
+        return score.view(bs, 1)
 
 def build_deit_large(pretrained=False, img_size=384, pretrained_21k=True, **kwargs):
     # 创建主模型

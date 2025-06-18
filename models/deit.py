@@ -18,6 +18,7 @@ from .kan import *
 from math import sqrt
 import pdb
 
+
 class Attention(nn.Module):
     # taken from https://github.com/rwightman/pytorch-image-models/blob/master/timm/models/vision_transformer.py
     def __init__(self, dim, num_heads=8, qkv_bias=False, qk_scale=None, attn_drop=0., proj_drop=0.):
@@ -325,37 +326,109 @@ class diff_attention(nn.Module):
 class KAN_Layer(nn.Module):
     def __init__(self, dim, dim_in):
         super().__init__()
-        self.dim_reduce = ConvBN(dim_in, dim, 1, with_bn=False)
-        self.dwconv = ConvBN(dim, dim, 7, 1, (7 - 1) // 2, groups=dim, with_bn=True)
-        self.f2 = ConvBN(dim, dim, 1, with_bn=False)
+        self.f2 = nn.Linear(dim,dim)
         # self.f2 = ConvBN(dim, dim, 1, with_bn=False)
-        self.f1 = KAN(width=[dim, dim], grid=5, k=3, seed=1, auto_save=False, device='cuda')
-        self.g = ConvBN(dim, dim, 1, with_bn=True)
-        # self.g = KAN(width=[dim, dim], grid=5, k=3, seed=1, auto_save=False, device='cuda')
+        self.f1 = nn.Linear(dim, dim)
+        self.g = KAN(width=[dim, dim], grid=5, k=3, seed=10, auto_save=False, device='cuda')
         self.dwconv2 = ConvBN(dim, dim, 7, 1, (7 - 1) // 2, groups=dim, with_bn=False)
         self.act = nn.ReLU6()
 
-    def forward(self, x):# [bs, 577, 384]
-        x = self.dim_reduce(x)  # Reduce dimension first
-        input = x
-        x = self.dwconv(x)
-        bs, dim, h, w = x.shape
-        x_k = x
-        x_k = x_k.permute(0, 2, 3, 1)       # [3, 14, 14, 32]
-        x_k = x_k.reshape(bs*h*w, dim).contiguous()     # [3* 196, 32]
-
-        x1, x2 = self.f1(x_k), self.f2(x)
+    def forward(self, diff, vit):# [bs, 577, 384]
         
-        x1 = x1.reshape(bs, h*w, dim).contiguous()  # [3, 196, 32]
-        x1 = x1.permute(0, 2, 1)       # [3, 32, 196]
-        x1 = x1.reshape(bs, dim, h, w).contiguous()    # [3, 32, 14, 14]
-
+        x1, x2 = self.f1(diff), self.f2(vit)
         x = x1 * x2
         x = self.g(x)           
-        x = self.dwconv2(x)
-        x = input + x
         return x
+    
+def get_dwconv(dim, kernel, bias):
+    return nn.Conv2d(dim, dim, kernel_size=kernel, padding=(kernel-1)//2 ,bias=bias, groups=dim)
 
+class gnconv(nn.Module):
+    def __init__(self, dim, order=5, gflayer=None, h=14, w=8, s=1.0):
+        super().__init__()
+        self.order = order
+        self.dims = [dim // 2 ** i for i in range(order)] # [24, 48, 96, 192, 384]
+        self.dims.reverse()
+        self.proj_in = nn.Conv2d(dim, 2*dim, 1)
+
+        if gflayer is None:
+            self.dwconv = get_dwconv(sum(self.dims), 7, True)
+        else:
+            self.dwconv = gflayer(sum(self.dims), h=h, w=w)
+        
+        self.proj_out = nn.Linear(dim, dim, 1)
+
+        self.pws = nn.ModuleList(
+            [nn.Linear(self.dims[i], self.dims[i+1], 1) for i in range(order-1)]
+        )
+
+        self.scale = s
+        self.proj_imgsize = nn.Conv1d(in_channels=576, out_channels=1, kernel_size=1)
+        self.proj_query = nn.Linear(self.dims[-1], self.dims[0])  # [384, 24]
+        # print('[gnconv]', order, 'order with dims=', self.dims, 'scale=%.4f'%self.scale)
+
+    def forward(self, x, img, mask=None, dummy=False):# x=[bs, 10, 384], img=[bs, 576, 384]
+        B, N, C = img.shape #[B, 576, 384]
+        H, W = 24, 24
+        img = img.reshape(B, C, 24, 24).contiguous()
+
+        fused_img = self.proj_in(img)
+        _, abc = torch.split(fused_img, (self.dims[0], sum(self.dims)), dim=1) #[bs, 24, H, W] [bs, 744, H, W]
+
+        dw_abc = self.dwconv(abc) * self.scale # [bs, 744, H, W]  
+        dw_abc = dw_abc.reshape(B, N, -1).contiguous()  # [bs, 576, 744]
+        dw_abc = self.proj_imgsize(dw_abc)  # [bs, 1, 744]
+        dw_abc = dw_abc.expand(-1, 10, -1) # [bs, 10, 744]
+
+        dw_list = torch.split(dw_abc, self.dims, dim=-1) #[bs, 10, 24] [bs, 10, 48]...[bs, 10, 384]
+        pwa = self.proj_query(x) # [bs, 10, 24]
+        cross = pwa * dw_list[0]
+
+        for i in range(self.order -1):
+            cross = self.pws[i](cross) * dw_list[i+1]
+
+        x = self.proj_out(cross)
+
+        return x
+    
+class Block(nn.Module):
+    r""" HorNet block
+    """
+    def __init__(self, dim, drop_path=0., layer_scale_init_value=1e-6, gnconv=gnconv):
+        super().__init__()
+
+        self.norm1 = nn.LayerNorm(dim, eps=1e-6)
+        self.gnconv = gnconv(dim) # depthwise conv
+        self.norm2 = nn.LayerNorm(dim, eps=1e-6)
+        self.pwconv1 = nn.Linear(dim, 4 * dim) # pointwise/1x1 convs, implemented with linear layers
+        self.act = nn.GELU()
+        self.pwconv2 = nn.Linear(4 * dim, dim)
+
+        self.gamma1 = nn.Parameter(layer_scale_init_value * torch.ones(dim), 
+                                    requires_grad=True) if layer_scale_init_value > 0 else None
+
+        self.gamma2 = nn.Parameter(layer_scale_init_value * torch.ones((dim)), 
+                                    requires_grad=True) if layer_scale_init_value > 0 else None
+        self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
+
+    def forward(self, x, img):
+        B, N, C = x.shape
+        if self.gamma1 is not None:
+            gamma1 = self.gamma1.view(1,1,C)
+        else:
+            gamma1 = 1
+        x = x + self.drop_path(gamma1 * self.gnconv(x, self.norm1(img)))
+
+        input = x
+        x = self.norm2(x)
+        x = self.pwconv1(x)
+        x = self.act(x)
+        x = self.pwconv2(x)
+        if self.gamma2 is not None:
+            x = self.gamma2 * x
+
+        x = input + self.drop_path(x)
+        return x
 # DeiT III: Revenge of the ViT (https://arxiv.org/abs/2204.07118)
 class dascore_vit_models(nn.Module):
     def __init__(self, img_size=384):
@@ -363,16 +436,17 @@ class dascore_vit_models(nn.Module):
         self.backbone = vit_models(img_size = img_size, patch_size=16, embed_dim=384, depth=12, num_heads=6, mlp_ratio=4, qkv_bias=True,
                                 norm_layer=partial(nn.LayerNorm, eps=1e-6),block_layers=Layer_scale_init_Block,num_classes=1)
         
-        bunch_layer = nn.TransformerDecoderLayer(
-            d_model=384,
-            dropout=0.0,
-            nhead=6,
-            activation=F.gelu,
-            batch_first=True,
-            dim_feedforward=(384 * 4),
-            norm_first=True,
-        )
-        self.decoder = nn.TransformerDecoder(bunch_layer, num_layers=1)
+        # bunch_layer = nn.TransformerDecoderLayer(
+        #     d_model=384,
+        #     dropout=0.0,
+        #     nhead=6,
+        #     activation=F.gelu,
+        #     batch_first=True,
+        #     dim_feedforward=(384 * 4),
+        #     norm_first=True,
+        # )
+        # self.decoder = nn.TransformerDecoder(bunch_layer, num_layers=1)
+        self.decoder = Block(384)
         
         checkpoint = '/home/fubohan/Code/DIQA/checkpoint/daclip_ViT-B-32.pt'
         self.head, self.head_preprocess = open_clip.create_model_from_pretrained('daclip_ViT-B-32', pretrained=checkpoint)
@@ -396,12 +470,12 @@ class dascore_vit_models(nn.Module):
         # self.norm2 = nn.LayerNorm(384)
         self.norm3 = nn.LayerNorm(576)
 
-        self.kan = KAN(width=[10,5,10], grid=5, k=3, seed=1, auto_save=False, device='cuda')
+        self.kan = KAN(width=[10,1], grid=5, k=3, seed=10, auto_save=False, device='cuda')
         # self.kan_layer_list = nn.ModuleList([KAN_Layer(32, 384) for i in range(len(degradations))]) # 384 is the embedding dimension of ViT-B-32
         # self.kan_layer = nn.Linear(384, 32)  # 384 is the embedding dimension of ViT-B-32, 32 is the output dimension
-        self.L3 = nn.Linear(384, 16)
-        self.L4 = nn.Linear(10, 1)
         self.score = nn.Linear(384, 1)
+        self.score_vit = nn.Linear(384, 1)
+        self.L3 = nn.Linear(10, 1)
 
     def mulithead(self, da_metrics, img_feature):
         bs = da_metrics.shape[0]  # batch size
@@ -453,14 +527,18 @@ class dascore_vit_models(nn.Module):
 
         out = out[:, :, 0, :] #[10, bs, 384]
         out = out.permute(1, 0, 2) #[bs, 10, 384]
-        vit_cls_token = img_feature[:, 0, :].unsqueeze(1).expand(-1, 10, -1)
-        out = out * vit_cls_token #[bs, 10, 384]
+        # vit_cls_token = img_feature[:, 0, :].unsqueeze(1).expand(-1, 10, -1)
+        # # vit_score = self.score_vit(vit_cls_token) # [bs, 10, 1]
+        # out = vit_cls_token * out   #[bs, 10, 384]
 
         score = self.decoder(out, img_feature[:, 1:, :]) 
-        score = self.score(score)  # [bs, 10, 1]
-        score = score.view(bs, -1).mean(dim=1)
-        # out = self.kan(out)
-        return score.view(bs, 1)
+
+        score = self.score(out)  # [bs, 10, 1]
+        # score = score.view(bs, -1).mean(dim=1)
+        # score = self.kan(score.squeeze())
+        score = self.L3(score.squeeze())
+        # 
+        return score
 
 def build_deit_large(pretrained=False, img_size=384, pretrained_21k=True, **kwargs):
     # 创建主模型

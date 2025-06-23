@@ -3,13 +3,13 @@ DATA:
   DATASET: livec
   BATCH_SIZE: 16
   PATCH_NUM: 5
-  TEST_PATCH_NUM: 15
-  CROP_SIZE: (384,384)
+  TEST_PATCH_NUM: 20
+  CROP_SIZE: (224,224)
 SET:
   COUNT: 1162
 MODEL:
   TYPE: deit_large
-  NAME: deiqt_small
+  NAME: diff_attention
   DROP_PATH_RATE: 0.0
   VIT:
     PATCH_SIZE : 16

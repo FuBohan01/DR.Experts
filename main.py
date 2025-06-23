@@ -580,13 +580,13 @@ if __name__ == "__main__":
 
         filename = "sel_num.data"
         # -----------------------------
-        # if dist.get_rank() == 0:
-        #     if not os.path.exists(sel_path := os.path.join(config.OUTPUT, filename)):
-        #         sel_num = list(range(0, config.SET.COUNT))
-        #         random.shuffle(sel_num)
-        #         with open(os.path.join(config.OUTPUT, filename), "wb") as f:
-        #             pickle.dump(sel_num, f)
-        #         del sel_num
+        if dist.get_rank() == 0:
+            if not os.path.exists(sel_path := os.path.join(config.OUTPUT, filename)):
+                sel_num = list(range(0, config.SET.COUNT))
+                random.shuffle(sel_num)
+                with open(os.path.join(config.OUTPUT, filename), "wb") as f:
+                    pickle.dump(sel_num, f)
+                del sel_num
         # -----------------------------
         dist.barrier()
 
@@ -601,10 +601,10 @@ if __name__ == "__main__":
         # config.OUTPUT = (config.OUTPUT).replace(
         #     config.TAG, "dinet_spaq_refo_fixed_LVFP4TP15"
         # )
-        config.OUTPUT = (
-            (config.OUTPUT)
-            .replace(config.TAG, "full_livec_daclip_multihead[test1]")
-        )
+        # config.OUTPUT = (
+        #     (config.OUTPUT)
+        #     .replace(config.TAG, "full_livec_daclip_multihead[test1]")
+        # )
         # config.OUTPUT = (
         #     (config.OUTPUT)
         #     .replace(config.TAG, "full_k10_deit")

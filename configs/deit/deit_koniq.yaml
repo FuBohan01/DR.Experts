@@ -1,15 +1,15 @@
 DATA:
   DATASET: koniq
-  # BATCH_SIZE: 39  # 4卡
-  BATCH_SIZE: 52  # 3卡
+  BATCH_SIZE: 39  # 4卡
+  # BATCH_SIZE: 52  # 3卡
   PATCH_NUM: 3
   TEST_PATCH_NUM: 15
-  CROP_SIZE: (384,384)
+  CROP_SIZE: (224,224)
 SET:
   COUNT: 10073
 MODEL:
   TYPE: deit_large
-  NAME: deiqt_small
+  NAME: diff_attention
   DROP_PATH_RATE: 0.0
   VIT:
     PATCH_SIZE : 16

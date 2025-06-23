@@ -70,7 +70,8 @@ def build_model(config):
         )
     elif model_type == "deit_large":
         model = build_deit_large(
-            pretrained=True
+            pretrained=True,
+            img_size=224
         )
     # elif model_type == "deit_large":
     #     model = build_deit_large(

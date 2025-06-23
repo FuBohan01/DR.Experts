@@ -28,6 +28,10 @@ class gnconv(nn.Module):
             [nn.Linear(self.dims[i], self.dims[i+1], 1) for i in range(order-1)]
         )
 
+        self.pwx = nn.ModuleList(
+            [nn.Linear(self.dims[i], self.dims[i+1], 1) for i in range(order-1)]
+        )
+
         self.scale = s
         self.proj_imgsize = nn.Conv1d(in_channels=576, out_channels=1, kernel_size=1)
         self.proj_query = nn.Linear(self.dims[-1], self.dims[0])  # [384, 24]
@@ -39,19 +43,23 @@ class gnconv(nn.Module):
         img = img.reshape(B, C, 24, 24).contiguous()
 
         fused_img = self.proj_in(img)
-        _, abc = torch.split(fused_img, (self.dims[0], sum(self.dims)), dim=1) #[bs, 24, H, W] [bs, 744, H, W]
+        pwa, abc = torch.split(fused_img, (self.dims[0], sum(self.dims)), dim=1) #[bs, 24, H, W] [bs, 744, H, W]
 
         dw_abc = self.dwconv(abc) * self.scale # [bs, 744, H, W]  
         dw_abc = dw_abc.reshape(B, N, -1).contiguous()  # [bs, 576, 744]
         dw_abc = self.proj_imgsize(dw_abc)  # [bs, 1, 744]
         dw_abc = dw_abc.expand(-1, 10, -1) # [bs, 10, 744]
+        pwa = pwa.reshape(B, N, -1).contiguous()  # [bs, 576, 24]
+        pwa = self.proj_imgsize(pwa)  # [bs, 1, 24]
+        pwa = pwa.expand(-1, 10, -1) # [bs, 10, 24]
 
         dw_list = torch.split(dw_abc, self.dims, dim=-1) #[bs, 10, 24] [bs, 10, 48]...[bs, 10, 384]
-        pwa = self.proj_query(x) # [bs, 10, 24]
-        cross = pwa * dw_list[0]
+        pw_q = self.proj_query(x) # [bs, 10, 24]
+        cross = pw_q * dw_list[0] * pwa
 
         for i in range(self.order -1):
-            cross = self.pws[i](cross) * dw_list[i+1]
+            pw_q = self.pwx[i](pw_q) # [bs, 10, 48]...[bs, 10, 384]
+            cross = self.pws[i](cross) * dw_list[i+1] * pw_q
 
         x = self.proj_out(cross)
 

@@ -14,6 +14,7 @@ from timm.models.registry import register_model
 from .starnet import ConvBN
 from . import open_clip
 from .kan import *
+from .din import DeepInterestNet
 # import open_clip
 from math import sqrt
 import pdb
@@ -362,6 +363,10 @@ class gnconv(nn.Module):
             [nn.Linear(self.dims[i], self.dims[i+1], 1) for i in range(order-1)]
         )
 
+        self.pwx = nn.ModuleList(
+            [nn.Linear(self.dims[i], self.dims[i+1], 1) for i in range(order-1)]
+        )
+
         self.scale = s
         self.proj_imgsize = nn.Conv1d(in_channels=576, out_channels=1, kernel_size=1)
         self.proj_query = nn.Linear(self.dims[-1], self.dims[0])  # [384, 24]
@@ -373,25 +378,29 @@ class gnconv(nn.Module):
         img = img.reshape(B, C, 24, 24).contiguous()
 
         fused_img = self.proj_in(img)
-        _, abc = torch.split(fused_img, (self.dims[0], sum(self.dims)), dim=1) #[bs, 24, H, W] [bs, 744, H, W]
+        pwa, abc = torch.split(fused_img, (self.dims[0], sum(self.dims)), dim=1) #[bs, 24, H, W] [bs, 744, H, W]
 
         dw_abc = self.dwconv(abc) * self.scale # [bs, 744, H, W]  
         dw_abc = dw_abc.reshape(B, N, -1).contiguous()  # [bs, 576, 744]
         dw_abc = self.proj_imgsize(dw_abc)  # [bs, 1, 744]
         dw_abc = dw_abc.expand(-1, 10, -1) # [bs, 10, 744]
+        pwa = pwa.reshape(B, N, -1).contiguous()  # [bs, 576, 24]
+        pwa = self.proj_imgsize(pwa)  # [bs, 1, 24]
+        pwa = pwa.expand(-1, 10, -1) # [bs, 10, 24]
 
         dw_list = torch.split(dw_abc, self.dims, dim=-1) #[bs, 10, 24] [bs, 10, 48]...[bs, 10, 384]
-        pwa = self.proj_query(x) # [bs, 10, 24]
-        cross = pwa * dw_list[0]
+        pw_q = self.proj_query(x) # [bs, 10, 24]
+        cross = pw_q * dw_list[0] * pwa
 
         for i in range(self.order -1):
-            cross = self.pws[i](cross) * dw_list[i+1]
+            pw_q = self.pwx[i](pw_q) # [bs, 10, 48]...[bs, 10, 384]
+            cross = self.pws[i](cross) * dw_list[i+1] * pw_q
 
         x = self.proj_out(cross)
 
         return x
     
-class Block(nn.Module):
+class HorNet_Block(nn.Module):
     r""" HorNet block
     """
     def __init__(self, dim, drop_path=0., layer_scale_init_value=1e-6, gnconv=gnconv):
@@ -429,6 +438,7 @@ class Block(nn.Module):
 
         x = input + self.drop_path(x)
         return x
+    
 # DeiT III: Revenge of the ViT (https://arxiv.org/abs/2204.07118)
 class dascore_vit_models(nn.Module):
     def __init__(self, img_size=384):
@@ -436,24 +446,18 @@ class dascore_vit_models(nn.Module):
         self.backbone = vit_models(img_size = img_size, patch_size=16, embed_dim=384, depth=12, num_heads=6, mlp_ratio=4, qkv_bias=True,
                                 norm_layer=partial(nn.LayerNorm, eps=1e-6),block_layers=Layer_scale_init_Block,num_classes=1)
         
-        # bunch_layer = nn.TransformerDecoderLayer(
-        #     d_model=384,
-        #     dropout=0.0,
-        #     nhead=6,
-        #     activation=F.gelu,
-        #     batch_first=True,
-        #     dim_feedforward=(384 * 4),
-        #     norm_first=True,
-        # )
-        # self.decoder = nn.TransformerDecoder(bunch_layer, num_layers=1)
-        self.decoder = Block(384)
+        if img_size == 384:
+            self.N = 576
+        else:
+            self.N = 196
+        self.decoder = DeepInterestNet(384)
         
         checkpoint = '/home/fubohan/Code/DIQA/checkpoint/daclip_ViT-B-32.pt'
         self.head, self.head_preprocess = open_clip.create_model_from_pretrained('daclip_ViT-B-32', pretrained=checkpoint)
         degradations = ['motion-blurry','hazy','jpeg-compressed','low-light','noisy','raindrop','rainy','shadowed','snowy','uncompleted']
 
         self.L1 = nn.Linear(512, 384)
-        self.L2 = nn.Linear(576, 1)  # 196 is the number of patches in ViT-B-32
+        self.L2 = nn.Linear(self.N, 1)  # 196 is the number of patches in ViT-B-32
         self.diff_attention = diff_attention(384)  # 384 is the embedding dimension of ViT-B-32
 
         tokenizer = open_clip.get_tokenizer('ViT-B-32')
@@ -467,15 +471,9 @@ class dascore_vit_models(nn.Module):
             nn.Linear(384, 384)
         )
         self.norm1 = nn.LayerNorm(512)
-        # self.norm2 = nn.LayerNorm(384)
-        self.norm3 = nn.LayerNorm(576)
 
-        self.kan = KAN(width=[10,1], grid=5, k=3, seed=10, auto_save=False, device='cuda')
-        # self.kan_layer_list = nn.ModuleList([KAN_Layer(32, 384) for i in range(len(degradations))]) # 384 is the embedding dimension of ViT-B-32
-        # self.kan_layer = nn.Linear(384, 32)  # 384 is the embedding dimension of ViT-B-32, 32 is the output dimension
         self.score = nn.Linear(384, 1)
-        self.score_vit = nn.Linear(384, 1)
-        self.L3 = nn.Linear(10, 1)
+
 
     def mulithead(self, da_metrics, img_feature):
         bs = da_metrics.shape[0]  # batch size
@@ -525,18 +523,17 @@ class dascore_vit_models(nn.Module):
 
         out = self.mulithead(da_metrics, img_feature) # shape=[10, bs, 577, 384]
 
-        out = out[:, :, 0, :] #[10, bs, 384]
-        out = out.permute(1, 0, 2) #[bs, 10, 384]
-        # vit_cls_token = img_feature[:, 0, :].unsqueeze(1).expand(-1, 10, -1)
-        # # vit_score = self.score_vit(vit_cls_token) # [bs, 10, 1]
-        # out = vit_cls_token * out   #[bs, 10, 384]
+        out = out.permute(1, 0, 2, 3) #[bs, 10, 577, 384]
 
-        score = self.decoder(out, img_feature[:, 1:, :]) 
 
-        score = self.score(out)  # [bs, 10, 1]
+        score = self.decoder(out, img_feature)  # [bs, 577, 384]
+
+        score = score[:, 0, :]
+
+        score = self.score(score)  # [bs, 1]
         # score = score.view(bs, -1).mean(dim=1)
         # score = self.kan(score.squeeze())
-        score = self.L3(score.squeeze())
+        # score = self.L3(score.squeeze())
         # 
         return score
 

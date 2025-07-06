@@ -30,7 +30,7 @@ class ActivationUnit(nn.Module):
         fc_layers = []
         # 2.输入特征维度
         input_dim = embedding_dim*4     
-        # 3.fc层内容：全连接层（4*embedding,32）—>激活函数->dropout->全连接层（32,16）->.....->全连接层（16,1）
+        # 3.fc层内容：全连接层（4*embedding,32）—>激活函数->全连接层（32,16）->.....->全连接层（16,1）
         for fc_dim in fc_dims:
             fc_layers.append(nn.Linear(input_dim, fc_dim))
             fc_layers.append(Dice())
@@ -67,7 +67,6 @@ class AttentionPoolingLayer(nn.Module):
         """
           :param query_ad:targe目标x的embedding   -> （输入维度） batch*1*embed
           :param user_behavior:行为特征矩阵     -> （输入维度） batch*seq_len*embed
-          :param mask:被padding为0的行为置为false  -> （输入维度） batch*seq_len*1
           :return output:用户行为向量之和，反应用户的爱好
         """
         # 1.计算目标和历史行为之间的相关性
@@ -75,7 +74,8 @@ class AttentionPoolingLayer(nn.Module):
         # 2.注意力系数乘以行为 
         output = user_behavior.mul(attns)
         # 3.历史行为向量相加
-        output = user_behavior.sum(dim=1)
+        # output = user_behavior.sum(dim=1)
+        output = output.sum(dim=1)
         return output
     
 class DeepInterestNet(nn.Module):

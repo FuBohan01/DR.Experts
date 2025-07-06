@@ -5,13 +5,13 @@ import torch
 import torch.nn as nn
 from functools import partial
 import torch.nn.functional as F
+import torchvision.transforms.functional as TF
 
 from timm.models.vision_transformer import Mlp, PatchEmbed , _cfg
 
 from timm.models.layers import DropPath, to_2tuple, trunc_normal_
 from timm.models.registry import register_model
 
-from .starnet import ConvBN
 from . import open_clip
 from .kan import *
 from .din import DeepInterestNet
@@ -265,7 +265,7 @@ class vit_models(nn.Module):
             
         x = self.norm(x)  # [1, 197, 384]
         # return x[:, 0]
-        return x  # [bs, 196, 384] remove cls token
+        return x  
 
     def forward(self, x):
 
@@ -324,155 +324,164 @@ class diff_attention(nn.Module):
         # return result[:, 0] #[bs, 586, 384]
         return result #[bs, 576, 384]
 
-class KAN_Layer(nn.Module):
-    def __init__(self, dim, dim_in):
-        super().__init__()
-        self.f2 = nn.Linear(dim,dim)
-        # self.f2 = ConvBN(dim, dim, 1, with_bn=False)
-        self.f1 = nn.Linear(dim, dim)
-        self.g = KAN(width=[dim, dim], grid=5, k=3, seed=10, auto_save=False, device='cuda')
-        self.dwconv2 = ConvBN(dim, dim, 7, 1, (7 - 1) // 2, groups=dim, with_bn=False)
-        self.act = nn.ReLU6()
+# class KAN_Layer(nn.Module):
+#     def __init__(self, dim, dim_in):
+#         super().__init__()
+#         self.f2 = nn.Linear(dim,dim)
+#         # self.f2 = ConvBN(dim, dim, 1, with_bn=False)
+#         self.f1 = nn.Linear(dim, dim)
+#         self.g = KAN(width=[dim, dim], grid=5, k=3, seed=10, auto_save=False, device='cuda')
+#         self.dwconv2 = ConvBN(dim, dim, 7, 1, (7 - 1) // 2, groups=dim, with_bn=False)
+#         self.act = nn.ReLU6()
 
-    def forward(self, diff, vit):# [bs, 577, 384]
+#     def forward(self, diff, vit):# [bs, 577, 384]
         
-        x1, x2 = self.f1(diff), self.f2(vit)
-        x = x1 * x2
-        x = self.g(x)           
-        return x
+#         x1, x2 = self.f1(diff), self.f2(vit)
+#         x = x1 * x2
+#         x = self.g(x)           
+#         return x
     
-def get_dwconv(dim, kernel, bias):
-    return nn.Conv2d(dim, dim, kernel_size=kernel, padding=(kernel-1)//2 ,bias=bias, groups=dim)
+# def get_dwconv(dim, kernel, bias):
+#     return nn.Conv2d(dim, dim, kernel_size=kernel, padding=(kernel-1)//2 ,bias=bias, groups=dim)
 
-class gnconv(nn.Module):
-    def __init__(self, dim, order=5, gflayer=None, h=14, w=8, s=1.0):
-        super().__init__()
-        self.order = order
-        self.dims = [dim // 2 ** i for i in range(order)] # [24, 48, 96, 192, 384]
-        self.dims.reverse()
-        self.proj_in = nn.Conv2d(dim, 2*dim, 1)
+# class gnconv(nn.Module):
+#     def __init__(self, dim, order=5, gflayer=None, h=14, w=8, s=1.0):
+#         super().__init__()
+#         self.order = order
+#         self.dims = [dim // 2 ** i for i in range(order)] # [24, 48, 96, 192, 384]
+#         self.dims.reverse()
+#         self.proj_in = nn.Conv2d(dim, 2*dim, 1)
 
-        if gflayer is None:
-            self.dwconv = get_dwconv(sum(self.dims), 7, True)
-        else:
-            self.dwconv = gflayer(sum(self.dims), h=h, w=w)
+#         if gflayer is None:
+#             self.dwconv = get_dwconv(sum(self.dims), 7, True)
+#         else:
+#             self.dwconv = gflayer(sum(self.dims), h=h, w=w)
         
-        self.proj_out = nn.Linear(dim, dim, 1)
+#         self.proj_out = nn.Linear(dim, dim, 1)
 
-        self.pws = nn.ModuleList(
-            [nn.Linear(self.dims[i], self.dims[i+1], 1) for i in range(order-1)]
-        )
+#         self.pws = nn.ModuleList(
+#             [nn.Linear(self.dims[i], self.dims[i+1], 1) for i in range(order-1)]
+#         )
 
-        self.pwx = nn.ModuleList(
-            [nn.Linear(self.dims[i], self.dims[i+1], 1) for i in range(order-1)]
-        )
+#         self.pwx = nn.ModuleList(
+#             [nn.Linear(self.dims[i], self.dims[i+1], 1) for i in range(order-1)]
+#         )
 
-        self.scale = s
-        self.proj_imgsize = nn.Conv1d(in_channels=576, out_channels=1, kernel_size=1)
-        self.proj_query = nn.Linear(self.dims[-1], self.dims[0])  # [384, 24]
-        # print('[gnconv]', order, 'order with dims=', self.dims, 'scale=%.4f'%self.scale)
+#         self.scale = s
+#         self.proj_imgsize = nn.Conv1d(in_channels=576, out_channels=1, kernel_size=1)
+#         self.proj_query = nn.Linear(self.dims[-1], self.dims[0])  # [384, 24]
+#         # print('[gnconv]', order, 'order with dims=', self.dims, 'scale=%.4f'%self.scale)
 
-    def forward(self, x, img, mask=None, dummy=False):# x=[bs, 10, 384], img=[bs, 576, 384]
-        B, N, C = img.shape #[B, 576, 384]
-        H, W = 24, 24
-        img = img.reshape(B, C, 24, 24).contiguous()
+    # def forward(self, x, img, mask=None, dummy=False):# x=[bs, 10, 384], img=[bs, 576, 384]
+    #     B, N, C = img.shape #[B, 576, 384]
+    #     H, W = 24, 24
+    #     img = img.reshape(B, C, 24, 24).contiguous()
 
-        fused_img = self.proj_in(img)
-        pwa, abc = torch.split(fused_img, (self.dims[0], sum(self.dims)), dim=1) #[bs, 24, H, W] [bs, 744, H, W]
+    #     fused_img = self.proj_in(img)
+    #     pwa, abc = torch.split(fused_img, (self.dims[0], sum(self.dims)), dim=1) #[bs, 24, H, W] [bs, 744, H, W]
 
-        dw_abc = self.dwconv(abc) * self.scale # [bs, 744, H, W]  
-        dw_abc = dw_abc.reshape(B, N, -1).contiguous()  # [bs, 576, 744]
-        dw_abc = self.proj_imgsize(dw_abc)  # [bs, 1, 744]
-        dw_abc = dw_abc.expand(-1, 10, -1) # [bs, 10, 744]
-        pwa = pwa.reshape(B, N, -1).contiguous()  # [bs, 576, 24]
-        pwa = self.proj_imgsize(pwa)  # [bs, 1, 24]
-        pwa = pwa.expand(-1, 10, -1) # [bs, 10, 24]
+    #     dw_abc = self.dwconv(abc) * self.scale # [bs, 744, H, W]  
+    #     dw_abc = dw_abc.reshape(B, N, -1).contiguous()  # [bs, 576, 744]
+    #     dw_abc = self.proj_imgsize(dw_abc)  # [bs, 1, 744]
+    #     dw_abc = dw_abc.expand(-1, 10, -1) # [bs, 10, 744]
+    #     pwa = pwa.reshape(B, N, -1).contiguous()  # [bs, 576, 24]
+    #     pwa = self.proj_imgsize(pwa)  # [bs, 1, 24]
+    #     pwa = pwa.expand(-1, 10, -1) # [bs, 10, 24]
 
-        dw_list = torch.split(dw_abc, self.dims, dim=-1) #[bs, 10, 24] [bs, 10, 48]...[bs, 10, 384]
-        pw_q = self.proj_query(x) # [bs, 10, 24]
-        cross = pw_q * dw_list[0] * pwa
+    #     dw_list = torch.split(dw_abc, self.dims, dim=-1) #[bs, 10, 24] [bs, 10, 48]...[bs, 10, 384]
+    #     pw_q = self.proj_query(x) # [bs, 10, 24]
+    #     cross = pw_q * dw_list[0] * pwa
 
-        for i in range(self.order -1):
-            pw_q = self.pwx[i](pw_q) # [bs, 10, 48]...[bs, 10, 384]
-            cross = self.pws[i](cross) * dw_list[i+1] * pw_q
+    #     for i in range(self.order -1):
+    #         pw_q = self.pwx[i](pw_q) # [bs, 10, 48]...[bs, 10, 384]
+    #         cross = self.pws[i](cross) * dw_list[i+1] * pw_q
 
-        x = self.proj_out(cross)
+    #     x = self.proj_out(cross)
 
-        return x
+    #     return x
     
-class HorNet_Block(nn.Module):
-    r""" HorNet block
-    """
-    def __init__(self, dim, drop_path=0., layer_scale_init_value=1e-6, gnconv=gnconv):
-        super().__init__()
+# class HorNet_Block(nn.Module):
+#     r""" HorNet block
+#     """
+#     def __init__(self, dim, drop_path=0., layer_scale_init_value=1e-6, gnconv=gnconv):
+#         super().__init__()
 
-        self.norm1 = nn.LayerNorm(dim, eps=1e-6)
-        self.gnconv = gnconv(dim) # depthwise conv
-        self.norm2 = nn.LayerNorm(dim, eps=1e-6)
-        self.pwconv1 = nn.Linear(dim, 4 * dim) # pointwise/1x1 convs, implemented with linear layers
-        self.act = nn.GELU()
-        self.pwconv2 = nn.Linear(4 * dim, dim)
+#         self.norm1 = nn.LayerNorm(dim, eps=1e-6)
+#         self.gnconv = gnconv(dim) # depthwise conv
+#         self.norm2 = nn.LayerNorm(dim, eps=1e-6)
+#         self.pwconv1 = nn.Linear(dim, 4 * dim) # pointwise/1x1 convs, implemented with linear layers
+#         self.act = nn.GELU()
+#         self.pwconv2 = nn.Linear(4 * dim, dim)
 
-        self.gamma1 = nn.Parameter(layer_scale_init_value * torch.ones(dim), 
-                                    requires_grad=True) if layer_scale_init_value > 0 else None
+#         self.gamma1 = nn.Parameter(layer_scale_init_value * torch.ones(dim), 
+#                                     requires_grad=True) if layer_scale_init_value > 0 else None
 
-        self.gamma2 = nn.Parameter(layer_scale_init_value * torch.ones((dim)), 
-                                    requires_grad=True) if layer_scale_init_value > 0 else None
-        self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
+#         self.gamma2 = nn.Parameter(layer_scale_init_value * torch.ones((dim)), 
+#                                     requires_grad=True) if layer_scale_init_value > 0 else None
+#         self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
 
-    def forward(self, x, img):
-        B, N, C = x.shape
-        if self.gamma1 is not None:
-            gamma1 = self.gamma1.view(1,1,C)
-        else:
-            gamma1 = 1
-        x = x + self.drop_path(gamma1 * self.gnconv(x, self.norm1(img)))
+#     def forward(self, x, img):
+#         B, N, C = x.shape
+#         if self.gamma1 is not None:
+#             gamma1 = self.gamma1.view(1,1,C)
+#         else:
+#             gamma1 = 1
+#         x = x + self.drop_path(gamma1 * self.gnconv(x, self.norm1(img)))
 
-        input = x
-        x = self.norm2(x)
-        x = self.pwconv1(x)
-        x = self.act(x)
-        x = self.pwconv2(x)
-        if self.gamma2 is not None:
-            x = self.gamma2 * x
+#         input = x
+#         x = self.norm2(x)
+#         x = self.pwconv1(x)
+#         x = self.act(x)
+#         x = self.pwconv2(x)
+#         if self.gamma2 is not None:
+#             x = self.gamma2 * x
 
-        x = input + self.drop_path(x)
-        return x
+#         x = input + self.drop_path(x)
+#         return x
     
 # DeiT III: Revenge of the ViT (https://arxiv.org/abs/2204.07118)
 class dascore_vit_models(nn.Module):
-    def __init__(self, img_size=384):
+    def __init__(self, img_size=384, model_size='small'):
         super().__init__()
-        self.backbone = vit_models(img_size = img_size, patch_size=16, embed_dim=384, depth=12, num_heads=6, mlp_ratio=4, qkv_bias=True,
+        if model_size == 'small':
+            self.backbone = vit_models(img_size = img_size, patch_size=16, embed_dim=384, depth=12, num_heads=6, mlp_ratio=4, qkv_bias=True,
                                 norm_layer=partial(nn.LayerNorm, eps=1e-6),block_layers=Layer_scale_init_Block,num_classes=1)
+        else:
+            self.backbone = vit_models(img_size = img_size, patch_size=16, embed_dim=768, depth=12, num_heads=12, mlp_ratio=4, qkv_bias=True,
+                                norm_layer=partial(nn.LayerNorm, eps=1e-6),block_layers=Layer_scale_init_Block, num_classes=1)
         
         if img_size == 384:
             self.N = 576
         else:
             self.N = 196
-        self.decoder = DeepInterestNet(384)
+        
+        if model_size == 'small':
+            self.embed_dim = 384
+        else:
+            self.embed_dim = 768
+        self.decoder = DeepInterestNet(self.embed_dim)
         
         checkpoint = '/home/fubohan/Code/DIQA/checkpoint/daclip_ViT-B-32.pt'
         self.head, self.head_preprocess = open_clip.create_model_from_pretrained('daclip_ViT-B-32', pretrained=checkpoint)
         degradations = ['motion-blurry','hazy','jpeg-compressed','low-light','noisy','raindrop','rainy','shadowed','snowy','uncompleted']
 
-        self.L1 = nn.Linear(512, 384)
+        self.L1 = nn.Linear(512, self.embed_dim)
         self.L2 = nn.Linear(self.N, 1)  # 196 is the number of patches in ViT-B-32
-        self.diff_attention = diff_attention(384)  # 384 is the embedding dimension of ViT-B-32
+        self.diff_attention = diff_attention(self.embed_dim)  # 384 is the embedding dimension of ViT-B-32
 
         tokenizer = open_clip.get_tokenizer('ViT-B-32')
         self.text = tokenizer(degradations).cuda()
-        self.lamda_init = nn.Parameter(torch.zeros(1, 384), requires_grad=True)
+        self.lamda_init = nn.Parameter(torch.zeros(1, self.embed_dim), requires_grad=True)
 
-        self.attn_norm = nn.LayerNorm(384)
+        self.attn_norm = nn.LayerNorm(self.embed_dim)
         self.group_attn_ffn = nn.Sequential(
-            nn.Linear(384, 384),
+            nn.Linear(self.embed_dim, self.embed_dim),
             nn.GELU(),
-            nn.Linear(384, 384)
+            nn.Linear(self.embed_dim, self.embed_dim)
         )
         self.norm1 = nn.LayerNorm(512)
 
-        self.score = nn.Linear(384, 1)
+        self.score = nn.Linear(self.embed_dim, 1)
 
 
     def mulithead(self, da_metrics, img_feature):
@@ -537,12 +546,12 @@ class dascore_vit_models(nn.Module):
         # 
         return score
 
-def build_deit_large(pretrained=False, img_size=384, pretrained_21k=True, **kwargs):
+def build_deit_large(pretrained=False, img_size=384, model_size='small',pretrained_21k=True, **kwargs):
     # 创建主模型
-    model = dascore_vit_models(img_size=img_size)
+    model = dascore_vit_models(img_size=img_size, model_size=model_size)
     # 如果需要加载backbone的预训练权重
     if pretrained:
-        name = 'https://dl.fbaipublicfiles.com/deit/deit_3_small_' + str(img_size) + '_'
+        name = 'https://dl.fbaipublicfiles.com/deit/deit_3_' + model_size + '_' +  str(img_size) + '_'
         if pretrained_21k:
             name += '21k.pth'
         else:
@@ -630,7 +639,7 @@ def deit_large_patch16_LS(pretrained=False, img_size=224, pretrained_21k = False
     return model
     
 if __name__ == '__main__':
-    model = build_deit_large(img_size=384)
+    model = build_deit_large(img_size=384,model_size='base')
     # print(model)
     # for name, param in model.named_parameters():
     #     if not param.requires_grad:

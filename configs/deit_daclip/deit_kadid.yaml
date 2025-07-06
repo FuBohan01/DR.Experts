@@ -1,12 +1,11 @@
-# For livefv, we recommend use 8 GPUs for reproduction
 DATA:
-  DATASET: livefb
-  BATCH_SIZE: 36
+  DATASET: kadid
+  BATCH_SIZE: 24
   PATCH_NUM: 3
-  TEST_PATCH_NUM: 5
-  CROP_SIZE: (384,384)
+  TEST_PATCH_NUM: 15
+  CROP_SIZE: (224,224)
 SET:
-  COUNT: 39810
+  COUNT: 81
 MODEL:
   TYPE: deit_large
   NAME: diff_attention
@@ -31,4 +30,5 @@ TRAIN:
   LR_SCHEDULER:
     NAME: step
     DECAY_EPOCHS: 3
+  # ACCUMULATION_STEPS: 2
 DISABLE_SAVE: True

@@ -580,36 +580,58 @@ if __name__ == "__main__":
 
         filename = "sel_num.data"
         # -----------------------------
-        if dist.get_rank() == 0:
-            if not os.path.exists(sel_path := os.path.join(config.OUTPUT, filename)):
-                sel_num = list(range(0, config.SET.COUNT))
-                random.shuffle(sel_num)
-                with open(os.path.join(config.OUTPUT, filename), "wb") as f:
-                    pickle.dump(sel_num, f)
-                del sel_num
+        # if dist.get_rank() == 0:
+        #     if not os.path.exists(sel_path := os.path.join(config.OUTPUT, filename)):
+        #         sel_num = list(range(0, config.SET.COUNT))
+        #         random.shuffle(sel_num)
+        #         with open(os.path.join(config.OUTPUT, filename), "wb") as f:
+        #             pickle.dump(sel_num, f)
+        #         del sel_num
         # -----------------------------
         dist.barrier()
 
         stem_temp = config.OUTPUT
 
         config.defrost()
-        # config.OUTPUT = (config.OUTPUT).replace(config.TAG, "decoder_k10k_dinput")
-        # config.OUTPUT = (config.OUTPUT).replace(config.TAG, "dinet_livec")
-        # config.OUTPUT = (config.OUTPUT).replace(
-        #     config.TAG, "dinet_livefb_refo_fixed_LVFP1TP1P224NB36"
+        # BID
+        # config.OUTPUT = ((config.OUTPUT).replace(config.TAG, "full_bid_deit_daclip_v2_diffv3_DIN")
+        #                  .replace("vit_base", "diff_attention")
         # )
-        # config.OUTPUT = (config.OUTPUT).replace(
-        #     config.TAG, "dinet_spaq_refo_fixed_LVFP4TP15"
+        # TID
+        # config.OUTPUT = ((config.OUTPUT).replace(config.TAG, "full_tid_deit_daclip_v2_diffv3_DIN")
+        #                  .replace("vit_base", "diff_attention"))
+        # LIVEFB
+        # config.OUTPUT = ((config.OUTPUT).replace(config.TAG, "full_livefb_deit_daclip_v2_diffv3_DIN_224")
+        #                  .replace("vit_base", "diff_attention")
+        #                  )
+        # CSIQ
+        # config.OUTPUT = (config.OUTPUT).replace(config.TAG, "full_csiq_deit_daclip_v2_diffv3_DIN_224")
+        # KADID
+        config.OUTPUT = ((config.OUTPUT).replace(config.TAG, "full_kadid_deit_daclip_v2_diffv3_DIN")
+                         .replace("kadid_test", "diff_attention")
+        )
+        # SPAQ
+        # config.OUTPUT = ((config.OUTPUT).replace(
+        #     config.TAG, "full_spaq_deit_daclip_v2_diffv3_DIN_224_1")
+        #     .replace("vit_base", "diff_attention")
+        #     )
+        # LIVE
+        # config.OUTPUT = (
+        #     (config.OUTPUT)
+        #     .replace(config.TAG, "full_live_deit_daclip_v2_diffv3_DIN_224")
+        #     # .replace("vit_base", "diff_attention")
         # )
+        # LIVEC
         # config.OUTPUT = (
         #     (config.OUTPUT)
         #     .replace(config.TAG, "full_livec_daclip_multihead[test1]")
+        #     .replace("vit_base", "deiqt_small")
         # )
+        # K10K
         # config.OUTPUT = (
         #     (config.OUTPUT)
         #     .replace(config.TAG, "full_k10_deit")
-        #     # .replace("results", "/mnt/iMVR/guanyi/dataset/IQA/results")
-        #     # .replace("/livec", "/dev")
+        #     .replace("kadid_test", "deiqt_small")
         # )
         config.freeze()
 

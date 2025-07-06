@@ -5,6 +5,7 @@ import numpy as np
 from scipy import io
 import torch.utils.data as data
 from PIL import Image
+from openpyxl import load_workbook
 
 
 class KONIQDATASET(data.Dataset):
@@ -309,6 +310,9 @@ def getTIDFileName(path, suffix):
     for i in f_list:
         if suffix.find(os.path.splitext(i)[1]) != -1:
             filename.append(i[1:3])
+
+    print("TID2013 Dataset: ", len(filename), " images loaded")
+    print("TID2013 Dataset: ", len(f_list), " images in total")
     return filename
 
 
@@ -335,7 +339,7 @@ class CSIQDataset(data.Dataset):
 
         sample = []
 
-        for i, item in enumerate(index):
+        for i, item in enumerate(index): 
             train_sel = refname[index[i]] == refnames_all
             train_sel = np.where(train_sel == True)
             train_sel = train_sel[0].tolist()
@@ -343,7 +347,7 @@ class CSIQDataset(data.Dataset):
                 for aug in range(patch_num):
                     sample.append(
                         (
-                            os.path.join(root, "dst_imgs_all", imgnames[item]),
+                            os.path.join(root, "dst_imgs", imgnames[item]),
                             labels[item],
                         )
                     )
@@ -379,7 +383,7 @@ class CSIQDataset(data.Dataset):
 
 class KADIDDataset(data.Dataset):
     def __init__(self, root, index, patch_num, transform=None):
-        refpath = os.path.join(root, "images")
+        refpath = os.path.join(root, "ref_images")
         refname = getTIDFileName(refpath, ".png.PNG")
 
         imgnames = []
@@ -460,8 +464,7 @@ class SPAQDATASET(data.Dataset):
                 sample.append(
                     (
                         os.path.join(
-                            self.data_path+'1',
-                            "TestImage",
+                            "/media/hdd1/fubohan/Dataset/IQA/SPAQ",
                             imgname[item],
                         ),
                         mos_all[item],
@@ -544,3 +547,88 @@ class FBLIVEFolder(data.Dataset):
     def __len__(self):
         length = len(self.samples)
         return length
+    
+class BIDDATASET(data.Dataset):
+
+    def __init__(self, root, index, patch_num, transform, score_k=2):
+
+        imgname = []
+        mos_all = []
+
+        xls_file = os.path.join(root, "DatabaseGrades.xlsx")
+        workbook = load_workbook(xls_file)
+        booksheet = workbook.active
+        rows = booksheet.rows
+        count = 1
+        for row in rows:
+            count += 1
+            img_num = booksheet.cell(row=count, column=1).value
+            img_name = "DatabaseImage%04d.JPG" % (img_num)
+            imgname.append(img_name)
+            mos = booksheet.cell(row=count, column=2).value
+            mos = np.float32(mos)
+            mos_all.append(mos)
+            if count == 587:
+                break
+
+        sample = []
+        for i, item in enumerate(index):
+            for aug in range(patch_num):
+                sample.append((os.path.join(root, imgname[item]), mos_all[item]))
+
+        self.score_k = score_k
+        self.bins = np.linspace(0, 100, self.score_k + 1)
+
+        self.samples = sample
+        self.transform = transform
+
+    def _load_image(self, path, mode="RGB"):
+        try:
+            im = Image.open(path).convert(mode)
+        except:
+            print("ERROR IMG LOADED: ", path)
+            random_img = np.random.rand(224, 224, 3) * 255
+            im = Image.fromarray(np.uint8(random_img))
+        return im
+
+    def __getitem__(self, index):
+        """
+        Args:
+            index (int): Index
+
+        Returns:
+            tuple: (sample, target) where target is class_index of the target class.
+        """
+        path, target = self.samples[index]
+        sample = self._load_image(path)
+        sample = self.transform(sample)
+        return sample, target
+
+
+    def __len__(self):
+        length = len(self.samples)
+        return length
+
+
+
+
+if __name__ == "__main__":
+    from torchvision import transforms
+    dataset = BIDDATASET(
+        root="/media/hdd1/fubohan/Dataset/IQA/BID/ImageDatabase",
+        index=[0, 1, 2,3,4,5,6,7,8,40],
+        patch_num=1,
+        transform=transforms.Compose(
+                [
+                    transforms.RandomHorizontalFlip(),
+                    transforms.RandomVerticalFlip(),
+                    transforms.RandomCrop(size=(224,224)),
+                    transforms.ToTensor(),
+                    transforms.Normalize(
+                        mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)
+                    ),
+                ]
+            ),
+    )
+    print(len(dataset))
+    

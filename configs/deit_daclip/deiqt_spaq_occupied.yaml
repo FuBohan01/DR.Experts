@@ -1,12 +1,11 @@
-# For livefv, we recommend use 8 GPUs for reproduction
 DATA:
-  DATASET: livefb
-  BATCH_SIZE: 36
+  DATASET: spaq
+  BATCH_SIZE: 1 # equal 64
   PATCH_NUM: 3
-  TEST_PATCH_NUM: 5
-  CROP_SIZE: (384,384)
+  TEST_PATCH_NUM: 15
+  CROP_SIZE: (224,224)
 SET:
-  COUNT: 39810
+  COUNT: 11125
 MODEL:
   TYPE: deit_large
   NAME: diff_attention

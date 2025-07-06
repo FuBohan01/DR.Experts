@@ -13,6 +13,7 @@ def build_transform(is_train, config):
             transform = transforms.Compose(
                 [
                     transforms.RandomHorizontalFlip(),
+                    transforms.RandomVerticalFlip(),
                     transforms.Resize((512, 384)),
                     transforms.RandomCrop(size=config.DATA.CROP_SIZE),
                     transforms.ToTensor(),
@@ -24,6 +25,8 @@ def build_transform(is_train, config):
         else:
             transform = transforms.Compose(
                 [
+                    transforms.RandomHorizontalFlip(),
+                    transforms.RandomVerticalFlip(),
                     transforms.Resize((512, 384)),
                     transforms.RandomCrop(size=config.DATA.CROP_SIZE),
                     transforms.ToTensor(),
@@ -37,6 +40,7 @@ def build_transform(is_train, config):
             transform = transforms.Compose(
                 [
                     transforms.RandomHorizontalFlip(),
+                    transforms.RandomVerticalFlip(),
                     transforms.RandomCrop(size=config.DATA.CROP_SIZE),
                     transforms.ToTensor(),
                     transforms.Normalize(
@@ -48,6 +52,8 @@ def build_transform(is_train, config):
         else:
             transform = transforms.Compose(
                 [
+                    transforms.RandomHorizontalFlip(),
+                    transforms.RandomVerticalFlip(),
                     transforms.RandomCrop(size=config.DATA.CROP_SIZE),
                     transforms.ToTensor(),
                     transforms.Normalize(
@@ -60,6 +66,8 @@ def build_transform(is_train, config):
             transform = transforms.Compose(
                 [
                     transforms.RandomHorizontalFlip(),
+                    transforms.RandomVerticalFlip(),
+                    # transforms.Resize((384, 384)),
                     transforms.RandomCrop(size=config.DATA.CROP_SIZE),
                     transforms.ToTensor(),
                     transforms.Normalize(
@@ -71,6 +79,9 @@ def build_transform(is_train, config):
         else:
             transform = transforms.Compose(
                 [
+                    transforms.RandomHorizontalFlip(),
+                    transforms.RandomVerticalFlip(),
+                    # transforms.Resize((384, 384)),
                     transforms.RandomCrop(size=config.DATA.CROP_SIZE),
                     transforms.ToTensor(),
                     transforms.Normalize(
@@ -83,17 +94,22 @@ def build_transform(is_train, config):
             transform = transforms.Compose(
                 [
                     transforms.RandomHorizontalFlip(),
+                    transforms.RandomVerticalFlip(),
+                    # transforms.Resize((384, 384)),
                     transforms.RandomCrop(size=config.DATA.CROP_SIZE),
                     transforms.ToTensor(),
-                    transforms.Normalize(
-                        mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)
-                    ),
+                    # transforms.Normalize(
+                    #     mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)
+                    # ),
                 ]
             )
             # Test transforms
         else:
             transform = transforms.Compose(
                 [
+                    transforms.RandomHorizontalFlip(),
+                    transforms.RandomVerticalFlip(),
+                    # transforms.Resize((384, 384)),
                     transforms.RandomCrop(size=config.DATA.CROP_SIZE),
                     transforms.ToTensor(),
                     transforms.Normalize(
@@ -106,6 +122,7 @@ def build_transform(is_train, config):
             transform = transforms.Compose(
                 [
                     transforms.RandomHorizontalFlip(),
+                    transforms.RandomVerticalFlip(),
                     transforms.RandomCrop(size=config.DATA.CROP_SIZE),
                     transforms.ToTensor(),
                     transforms.Normalize(
@@ -117,6 +134,8 @@ def build_transform(is_train, config):
         else:
             transform = transforms.Compose(
                 [
+                    transforms.RandomHorizontalFlip(),
+                    transforms.RandomVerticalFlip(),
                     transforms.RandomCrop(size=config.DATA.CROP_SIZE),
                     transforms.ToTensor(),
                     transforms.Normalize(
@@ -129,6 +148,7 @@ def build_transform(is_train, config):
             transform = transforms.Compose(
                 [
                     transforms.RandomHorizontalFlip(),
+                    transforms.RandomVerticalFlip(),
                     transforms.RandomCrop(size=config.DATA.CROP_SIZE),
                     transforms.ToTensor(),
                     transforms.Normalize(
@@ -140,6 +160,8 @@ def build_transform(is_train, config):
         else:
             transform = transforms.Compose(
                 [
+                    transforms.RandomHorizontalFlip(),
+                    transforms.RandomVerticalFlip(),
                     transforms.RandomCrop(size=config.DATA.CROP_SIZE),
                     transforms.ToTensor(),
                     transforms.Normalize(
@@ -152,6 +174,8 @@ def build_transform(is_train, config):
             transform = transforms.Compose(
                 [
                     transforms.RandomHorizontalFlip(),
+                    transforms.RandomVerticalFlip(),
+                    # transforms.Resize((300, 224)),
                     transforms.RandomCrop(size=config.DATA.CROP_SIZE),
                     transforms.ToTensor(),
                     transforms.Normalize(
@@ -162,6 +186,9 @@ def build_transform(is_train, config):
         else:
             transform = transforms.Compose(
                 [
+                    transforms.RandomHorizontalFlip(),
+                    transforms.RandomVerticalFlip(),
+                    # transforms.Resize((300, 224)),
                     transforms.RandomCrop(size=config.DATA.CROP_SIZE),
                     transforms.ToTensor(),
                     transforms.Normalize(
@@ -173,8 +200,9 @@ def build_transform(is_train, config):
         if is_train:
             transform = transforms.Compose(
                 [
+                    transforms.Resize((512, 384)),
                     transforms.RandomHorizontalFlip(),
-                    # transforms.Resize((224, 224)),
+                    transforms.RandomVerticalFlip(),
                     transforms.RandomCrop(size=config.DATA.CROP_SIZE),
                     transforms.ToTensor(),
                     transforms.Normalize(
@@ -185,7 +213,36 @@ def build_transform(is_train, config):
         else:
             transform = transforms.Compose(
                 [
-                    # transforms.Resize((224, 224)),
+                    transforms.Resize((512, 384)),
+                    transforms.RandomCrop(size=config.DATA.CROP_SIZE),
+                    transforms.ToTensor(),
+                    transforms.Normalize(
+                        mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)
+                    ),
+                ]
+            )
+
+    if config.DATA.DATASET == "bid":
+        if is_train:
+            transform = transforms.Compose(
+                [
+                    transforms.Resize((512, 512)),
+                    transforms.RandomHorizontalFlip(),
+                    transforms.RandomVerticalFlip(),
+                    transforms.RandomCrop(size=config.DATA.CROP_SIZE),
+                    transforms.ToTensor(),
+                    transforms.Normalize(
+                        mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)
+                    ),
+                ]
+            )
+            # Test transforms
+        else:
+            transform = transforms.Compose(
+                [
+                    transforms.Resize((512, 512)),
+                    transforms.RandomHorizontalFlip(),
+                    transforms.RandomVerticalFlip(),
                     transforms.RandomCrop(size=config.DATA.CROP_SIZE),
                     transforms.ToTensor(),
                     transforms.Normalize(
@@ -198,6 +255,19 @@ def build_transform(is_train, config):
 
 def build_IQA_dataset(config):
     print(config.DATA.DATASET)
+    # if config.DATA.DATASET == "koniq":
+    #     train_dataset = KONIQDATASET(
+    #         config.DATA.DATA_PATH,
+    #         config.SET.TRAIN_INDEX,
+    #         config.DATA.PATCH_NUM,
+    #         transform=build_transform(is_train=True, config=config),
+    #     )
+    #     test_dataset = KONIQDATASET(
+    #         config.DATA.DATA_PATH,
+    #         config.SET.TEST_INDEX,
+    #         config.DATA.TEST_PATCH_NUM,
+    #         transform=build_transform(is_train=False, config=config),
+    #     )
     if config.DATA.DATASET == "koniq":
         train_dataset = KONIQDATASET(
             config.DATA.DATA_PATH,
@@ -208,7 +278,20 @@ def build_IQA_dataset(config):
         test_dataset = KONIQDATASET(
             config.DATA.DATA_PATH,
             config.SET.TEST_INDEX,
+            config.DATA.TEST_PATCH_NUM,
+            transform=build_transform(is_train=False, config=config),
+        )
+    elif config.DATA.DATASET == "bid":
+        train_dataset = BIDDATASET(
+            config.DATA.DATA_PATH,
+            config.SET.TRAIN_INDEX,
             config.DATA.PATCH_NUM,
+            transform=build_transform(is_train=True, config=config),
+        )
+        test_dataset = BIDDATASET(
+            config.DATA.DATA_PATH,
+            config.SET.TEST_INDEX,
+            config.DATA.TEST_PATCH_NUM,
             transform=build_transform(is_train=False, config=config),
         )
     elif config.DATA.DATASET == "uw":
@@ -234,7 +317,7 @@ def build_IQA_dataset(config):
         test_dataset = LIVECDATASET(
             config.DATA.DATA_PATH,
             config.SET.TEST_INDEX,
-            config.DATA.PATCH_NUM,
+            config.DATA.TEST_PATCH_NUM,
             transform=build_transform(is_train=False, config=config),
         )
     elif config.DATA.DATASET == "live":
@@ -247,7 +330,7 @@ def build_IQA_dataset(config):
         test_dataset = LIVEDataset(
             config.DATA.DATA_PATH,
             config.SET.TEST_INDEX,
-            config.DATA.PATCH_NUM,
+            config.DATA.TEST_PATCH_NUM,
             transform=build_transform(is_train=False, config=config),
         )
     elif config.DATA.DATASET == "tid2013":
@@ -260,7 +343,7 @@ def build_IQA_dataset(config):
         test_dataset = TID2013Dataset(
             config.DATA.DATA_PATH,
             config.SET.TEST_INDEX,
-            config.DATA.PATCH_NUM,
+            config.DATA.TEST_PATCH_NUM,
             transform=build_transform(is_train=False, config=config),
         )
     elif config.DATA.DATASET == "csiq":
@@ -273,7 +356,7 @@ def build_IQA_dataset(config):
         test_dataset = CSIQDataset(
             config.DATA.DATA_PATH,
             config.SET.TEST_INDEX,
-            config.DATA.PATCH_NUM,
+            config.DATA.TEST_PATCH_NUM,
             transform=build_transform(is_train=False, config=config),
         )
     elif config.DATA.DATASET == "kadid":
@@ -286,7 +369,7 @@ def build_IQA_dataset(config):
         test_dataset = KADIDDataset(
             config.DATA.DATA_PATH,
             config.SET.TEST_INDEX,
-            config.DATA.PATCH_NUM,
+            config.DATA.TEST_PATCH_NUM,
             transform=build_transform(is_train=False, config=config),
         )
     elif config.DATA.DATASET == "spaq":
@@ -299,7 +382,7 @@ def build_IQA_dataset(config):
         test_dataset = SPAQDATASET(
             config.DATA.DATA_PATH,
             config.SET.TEST_INDEX,
-            config.DATA.PATCH_NUM,
+            config.DATA.TEST_PATCH_NUM,
             transform=build_transform(is_train=False, config=config),
         )
     elif config.DATA.DATASET == "livefb":
@@ -312,7 +395,7 @@ def build_IQA_dataset(config):
         test_dataset = FBLIVEFolder(
             config.DATA.DATA_PATH,
             config.SET.TEST_INDEX,
-            config.DATA.PATCH_NUM,
+            config.DATA.TEST_PATCH_NUM,
             transform=build_transform(is_train=False, config=config),
         )
     else:

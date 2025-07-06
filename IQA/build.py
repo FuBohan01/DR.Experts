@@ -52,8 +52,8 @@ def build_transform(is_train, config):
         else:
             transform = transforms.Compose(
                 [
-                    transforms.RandomHorizontalFlip(),
-                    transforms.RandomVerticalFlip(),
+                    # transforms.RandomHorizontalFlip(),
+                    # transforms.RandomVerticalFlip(),
                     transforms.RandomCrop(size=config.DATA.CROP_SIZE),
                     transforms.ToTensor(),
                     transforms.Normalize(

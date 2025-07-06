@@ -1,15 +1,15 @@
 # For livefv, we recommend use 8 GPUs for reproduction
 DATA:
   DATASET: livefb
-  BATCH_SIZE: 20
-  PATCH_NUM: 3
+  BATCH_SIZE: 24
+  PATCH_NUM: 2
   TEST_PATCH_NUM: 5
   CROP_SIZE: (384,384)
 SET:
   COUNT: 39810
 MODEL:
   TYPE: deit_large
-  NAME: vit_base
+  NAME: base_size
   DROP_PATH_RATE: 0.0
   VIT:
     INPUT_SIZE : 384
@@ -30,7 +30,7 @@ TRAIN:
   BASE_LR: 2.0e-4
   WARMUP_LR: 2.0e-7
   MIN_LR: 2.0e-7
-  ACCUMULATION_STEPS: 2
+  # ACCUMULATION_STEPS: 2
   LR_SCHEDULER:
     NAME: step
     DECAY_EPOCHS: 3

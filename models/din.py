@@ -29,11 +29,11 @@ class ActivationUnit(nn.Module):
         # 1.初始化fc层
         fc_layers = []
         # 2.输入特征维度
-        input_dim = embedding_dim*4     
+        input_dim = embedding_dim*3     
         # 3.fc层内容：全连接层（4*embedding,32）—>激活函数->全连接层（32,16）->.....->全连接层（16,1）
         for fc_dim in fc_dims:
             fc_layers.append(nn.Linear(input_dim, fc_dim))
-            fc_layers.append(Dice())
+            fc_layers.append(nn.PReLU())
             input_dim = fc_dim
         
         fc_layers.append(nn.Linear(input_dim, 1))
@@ -50,8 +50,7 @@ class ActivationUnit(nn.Module):
         # 3.前面的把四个embedding合并成一个（4*embedding）的向量，
         #  第一个向量是目标商品的向量，第二个向量是用户行为的向量，
         #  至于第三个和第四个则是他们的相减和相乘（这里猜测是为了添加一点非线性数据用于全连接层，充分训练）
-        attn_input = torch.cat([query, user_behavior, query - user_behavior, 
-                                query * user_behavior], dim = -1)
+        attn_input = torch.cat([query, user_behavior, query - user_behavior], dim = -1) # [bs, 10, 577, 4*384]
         out = self.fc(attn_input)
         return out
 class AttentionPoolingLayer(nn.Module):

@@ -594,38 +594,39 @@ if __name__ == "__main__":
 
         config.defrost()
         # BID
-        # config.OUTPUT = ((config.OUTPUT).replace(config.TAG, "full_bid_deit_daclip_v2_diffv3_DIN")
-        #                  .replace("vit_base", "diff_attention")
-        # )
+        config.OUTPUT = ((config.OUTPUT).replace(config.TAG, "full_bid_deit_daclip_v2_diffv3_DIN")
+                         .replace("base_size", "diff_attention")
+        )
         # TID
         # config.OUTPUT = ((config.OUTPUT).replace(config.TAG, "full_tid_deit_daclip_v2_diffv3_DIN")
         #                  .replace("vit_base", "diff_attention"))
         # LIVEFB
         # config.OUTPUT = ((config.OUTPUT).replace(config.TAG, "full_livefb_deit_daclip_v2_diffv3_DIN_224")
-        #                  .replace("vit_base", "diff_attention")
+        #                  .replace("base_size", "diff_attention")
         #                  )
         # CSIQ
-        # config.OUTPUT = (config.OUTPUT).replace(config.TAG, "full_csiq_deit_daclip_v2_diffv3_DIN_224")
+        # config.OUTPUT = ((config.OUTPUT).replace(config.TAG, "full_csiq_deit_daclip_v2_diffv3_DIN")
+        #                  .replace("kadid_test", "diff_attention"))
         # KADID
-        config.OUTPUT = ((config.OUTPUT).replace(config.TAG, "full_kadid_deit_daclip_v2_diffv3_DIN")
-                         .replace("kadid_test", "diff_attention")
-        )
+        # config.OUTPUT = ((config.OUTPUT).replace(config.TAG, "full_kadid_deit_daclip_v2_diffv3_DIN")
+        #                  .replace("kadid_test", "diff_attention")
+        # )
         # SPAQ
         # config.OUTPUT = ((config.OUTPUT).replace(
         #     config.TAG, "full_spaq_deit_daclip_v2_diffv3_DIN_224_1")
-        #     .replace("vit_base", "diff_attention")
+        #     .replace("kadid_test", "diff_attention")
         #     )
         # LIVE
         # config.OUTPUT = (
         #     (config.OUTPUT)
         #     .replace(config.TAG, "full_live_deit_daclip_v2_diffv3_DIN_224")
-        #     # .replace("vit_base", "diff_attention")
+        #     .replace("kadid_test", "diff_attention")
         # )
         # LIVEC
         # config.OUTPUT = (
         #     (config.OUTPUT)
-        #     .replace(config.TAG, "full_livec_daclip_multihead[test1]")
-        #     .replace("vit_base", "deiqt_small")
+        #     .replace(config.TAG, "full_livec_deit[base]_daclip_v2_diffv3_DIN")
+        #     .replace("base_size", "vit_base")
         # )
         # K10K
         # config.OUTPUT = (

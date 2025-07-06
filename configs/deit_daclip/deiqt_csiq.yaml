@@ -1,16 +1,18 @@
 DATA:
   DATASET: csiq
-  BATCH_SIZE: 24
-  PATCH_NUM: 10
+  BATCH_SIZE: 18
+  PATCH_NUM: 15
   TEST_PATCH_NUM: 15
   CROP_SIZE: (384,384)
 SET:
   COUNT: 30
 MODEL:
   TYPE: deit_large
-  NAME: diff_attention
+  NAME: kadid_test
   DROP_PATH_RATE: 0.0
   VIT:
+    INPUT_SIZE : 384
+    MODEL_SIZE : small
     PATCH_SIZE : 16
     EMBED_DIM : 384
     DEPTH : 12

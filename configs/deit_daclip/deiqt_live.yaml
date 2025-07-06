@@ -3,7 +3,7 @@ DATA:
   # BATCH_SIZE: 14
   # PATCH_NUM: 8
   # TEST_PATCH_NUM: 16
-  BATCH_SIZE: 4
+  BATCH_SIZE: 8
   PATCH_NUM: 8
   TEST_PATCH_NUM: 15
   CROP_SIZE: (384,384)
@@ -11,11 +11,11 @@ SET:
   COUNT: 29
 MODEL:
   TYPE: deit_large
-  NAME: diff_attention
+  NAME: kadid_test
   DROP_PATH_RATE: 0.0
   VIT:
     INPUT_SIZE : 384
-    MODEL_SIZE : small
+    MODEL_SIZE : base
     PATCH_SIZE : 16
     EMBED_DIM : 384
     DEPTH : 12
@@ -32,7 +32,7 @@ TRAIN:
   BASE_LR: 2.0e-4
   WARMUP_LR: 2.0e-7
   MIN_LR: 2.0e-7
-  ACCUMULATION_STEPS: 2
+  # ACCUMULATION_STEPS: 2
   LR_SCHEDULER:
     NAME: step
     DECAY_EPOCHS: 3

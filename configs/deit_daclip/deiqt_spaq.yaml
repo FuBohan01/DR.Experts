@@ -1,6 +1,6 @@
 DATA:
   DATASET: spaq
-  BATCH_SIZE: 22 # equal 64
+  BATCH_SIZE: 24 # equal 64
   PATCH_NUM: 2
   TEST_PATCH_NUM: 15
   CROP_SIZE: (384,384)
@@ -8,11 +8,11 @@ SET:
   COUNT: 11125
 MODEL:
   TYPE: deit_large
-  NAME: kadid_test
+  NAME: small_size
   DROP_PATH_RATE: 0.0
   VIT:
     INPUT_SIZE : 384
-    MODEL_SIZE : base
+    MODEL_SIZE : small
     PATCH_SIZE : 16
     EMBED_DIM : 384
     DEPTH : 12

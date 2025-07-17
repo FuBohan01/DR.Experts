@@ -3,8 +3,8 @@
 CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 OMP_NUM_THREADS=4 torchrun --nnodes 1 --nproc_per_node 8 --master_port 49960  main.py \
 --cfg /home/fubohan/Code/DIQA/configs/deit_daclip/deiqt_livefb.yaml \
 --data-path /media/hdd1/hzh/iqa-dataset/liveFB \
---output results \
+--output /media/hdd1/fubohan/results \
 --tensorboard \
---tag full_livefb_deit[base]_daclip_v2_diffv3_DIN \
+--tag full_livefb_weight \
 --repeat \
 --rnum 10

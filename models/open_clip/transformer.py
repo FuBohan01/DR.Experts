@@ -306,7 +306,7 @@ class ControlTransformer(nn.Module):
         return module
 
     def forward(self, x: torch.Tensor, attn_mask: Optional[torch.Tensor] = None, 
-                output_hiddens: Optional[bool] = False, control: Optional[torch.Tensor] = None):
+                output_hiddens: Optional[bool] = True, control: Optional[torch.Tensor] = None):
         if output_hiddens:
             hiddens = []
         for z, r in zip(self.zero_modules, self.transformer.resblocks):

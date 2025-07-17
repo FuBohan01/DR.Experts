@@ -290,7 +290,7 @@ class diff_attention(nn.Module):
         self.embedding_dim = embedding_dim
         # self.score_token = nn.Parameter(torch.zeros(1, 1, embedding_dim))
 
-    def forward(self, X1, X2):
+    def forward(self, X1, X2, X1_hidden):
         """
         Forward pass of the Differential Attention module.
         
@@ -302,10 +302,10 @@ class diff_attention(nn.Module):
         - Tensor: Output tensor.
         """
         X1 = X1.unsqueeze(1)  # [bs, 1, 384]
-        X1 = X1.expand(-1, X2.shape[1], -1)  # [bs, 576, 384]
+        X1 = X1.expand(-1, X2.shape[1], -1)  # [bs, 577, 384]
         X = torch.cat([X1, X2], dim=-1)
         Q1 = self.W_q1(X1)
-        K1 = self.W_k1(X1)
+        K1 = self.W_k1(X1_hidden)
         Q2 = self.W_q2(X2)
         K2 = self.W_k2(X2)      
         V = self.W_v(X)
@@ -480,15 +480,24 @@ class dascore_vit_models(nn.Module):
             nn.Linear(self.embed_dim, self.embed_dim)
         )
         self.norm1 = nn.LayerNorm(512)
+        self.L_hidden = nn.Linear(768, self.embed_dim)  # 
 
         self.score = nn.Linear(self.embed_dim, 1)
 
+        self.norm_vit = nn.LayerNorm(self.embed_dim)  # 
+        self.norm3_hidden_feature = nn.LayerNorm(self.embed_dim)  # 
+        self.linears = nn.ModuleList([nn.Linear(512, self.embed_dim) for _ in range(10)])
 
-    def mulithead(self, da_metrics, img_feature):
+
+    def mulithead(self, da_metrics, img_feature, hidden_feature):
         bs = da_metrics.shape[0]  # batch size
         group_attn = []
         for i in range(da_metrics.shape[1]):
-            diff_attn = self.diff_attention(da_metrics[:, i, :], img_feature)  # [bs, 577, 384]
+            da_metrics_i = da_metrics[:, i, :]  # [bs, 384]
+            img_feature = self.norm_vit(img_feature)  
+            hidden_feature_i = hidden_feature[:, i, :, :]  # [bs, 577, 384]
+            hidden_feature_i = self.norm3_hidden_feature(hidden_feature_i)  # [bs,
+            diff_attn = self.diff_attention(da_metrics_i, img_feature, hidden_feature_i)  # [bs, 577, 384]
 
             group_attn.append(diff_attn)  
         # group_attn = torch.cat(group_attn, dim=-1)  # [bs, 577, 384 * nclass]
@@ -515,7 +524,7 @@ class dascore_vit_models(nn.Module):
         da_img = (da_img - mean) / std
 
         text_features = self.head.encode_text(self.text)
-        clip_image_feature, da_img_feature = self.head.encode_image(da_img, control= True) # shape=[1, 512] 
+        da_img_feature, hiddens= self.head.encode_image(da_img, control= True) # shape=[1, 512] 
         da_img_feature = da_img_feature / da_img_feature.norm(dim=-1, keepdim=True)
         text_features = text_features / text_features.norm(dim=-1, keepdim=True)
         
@@ -526,11 +535,28 @@ class dascore_vit_models(nn.Module):
         # 按元素相乘
         da_metrics = text_features_expand * da_img_feature_expand  # [bs, nclass, 512]
         da_metrics = self.norm1(da_metrics)  # [52, n_class, 512]
-        da_metrics = self.L1(da_metrics) # shape=[bs, n_class, 384]
-        
+        # da_metrics = self.L1(da_metrics) # shape=[bs, n_class, 384]
+        da_metrcis_list = []
+        for i in range(10):
+            da_metrcis_list.append(self.linears[i](da_metrics[:, i, :]))  # [bs, 384]
+        da_metrics = torch.stack(da_metrcis_list, dim=1)  # [bs, 10, 384]
+
+        hidden_feature = hiddens[-1] 
+        hidden_feature = hidden_feature.permute(1, 0, 2)  # [bs, 50, 768]
+        hidden_feature = self.L_hidden(hidden_feature)  # [bs, 50, 384]
+        hidden_feature = hidden_feature[:, 1:, :]         # [bs, 49, 384]
+        hidden_feature = hidden_feature.reshape(bs, 7, 7, self.embed_dim)         # [bs, 7, 7, 384]
+        hidden_feature = hidden_feature.permute(0, 3, 1, 2)            # [bs, 384, 7, 7]
+        hidden_feature = F.interpolate(hidden_feature, size=(24, 24), mode='bilinear', align_corners=False)  # [bs, 384, 24, 24]
+        hidden_feature = hidden_feature.permute(0, 2, 3, 1)            # [bs, 24, 24, 384]
+        hidden_feature = hidden_feature.reshape(bs, -1, self.embed_dim)  # [bs, 576, 384]
+        hidden_feature = hidden_feature.unsqueeze(1)  # [bs, 1, 576, 384]
+        hidden_feature = hidden_feature.expand(-1, 10, -1, -1)  # [bs, 10, 576, 384]
+        da_token = da_metrics.unsqueeze(2)  # [bs, 10, 1, 384]
+        hidden_feature = torch.cat((da_token, hidden_feature), dim=2)  # [bs,10, 577, 384]
         # img_feature = self.norm2(img_feature)  # [52, 576, 384]
 
-        out = self.mulithead(da_metrics, img_feature) # shape=[10, bs, 577, 384]
+        out = self.mulithead(da_metrics, img_feature, hidden_feature) # shape=[10, bs, 577, 384]
 
         out = out.permute(1, 0, 2, 3) #[bs, 10, 577, 384]
 
@@ -540,13 +566,13 @@ class dascore_vit_models(nn.Module):
         score = score[:, 0, :]
 
         score = self.score(score)  # [bs, 1]
-        # score = score.view(bs, -1).mean(dim=1)
+        # score = score.view(bs, -1).sum(dim=1)
         # score = self.kan(score.squeeze())
         # score = self.L3(score.squeeze())
-        # 
+        # score = score.unsqueeze(1)
         return score
 
-def build_deit_large(pretrained=False, img_size=384, model_size='small',pretrained_21k=True, **kwargs):
+def build_deit_large(pretrained=False, img_size=384, model_size='small',pretrained_21k=True, infer=False, infer_model_path=None, **kwargs):
     # 创建主模型
     model = dascore_vit_models(img_size=img_size, model_size=model_size)
     # 如果需要加载backbone的预训练权重
@@ -570,9 +596,18 @@ def build_deit_large(pretrained=False, img_size=384, model_size='small',pretrain
         model.backbone.load_state_dict(state_dict, strict=False)
         for name, param in model.named_parameters():
             if 'head' in name:
-                param.requires_grad = False
+                param.requires_grad = True
             elif 'text' in name:
-                param.requires_grad = False
+                param.requires_grad = True
+    elif infer:
+        assert infer_model_path != ""
+        checkpoint = torch.load(
+            infer_model_path, map_location="cpu", weights_only=False
+        )
+        state_dict = checkpoint["model"]
+        model.load_state_dict(state_dict, strict=True)
+        del checkpoint
+        torch.cuda.empty_cache()
     return model
 
 # def build_deit_large(pretrained=False, img_size=384, pretrained_21k = True,  **kwargs):
@@ -639,7 +674,7 @@ def deit_large_patch16_LS(pretrained=False, img_size=224, pretrained_21k = False
     return model
     
 if __name__ == '__main__':
-    model = build_deit_large(img_size=384,model_size='base')
+    model = build_deit_large(img_size=384,model_size='small')
     # print(model)
     # for name, param in model.named_parameters():
     #     if not param.requires_grad:

@@ -11,11 +11,11 @@ SET:
   COUNT: 29
 MODEL:
   TYPE: deit_large
-  NAME: kadid_test
+  NAME: small_size
   DROP_PATH_RATE: 0.0
   VIT:
     INPUT_SIZE : 384
-    MODEL_SIZE : base
+    MODEL_SIZE : small
     PATCH_SIZE : 16
     EMBED_DIM : 384
     DEPTH : 12

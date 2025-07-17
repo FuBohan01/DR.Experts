@@ -1,16 +1,18 @@
 DATA:
   DATASET: kadid
-  BATCH_SIZE: 24
-  PATCH_NUM: 3
+  BATCH_SIZE: 20
+  PATCH_NUM: 2
   TEST_PATCH_NUM: 15
-  CROP_SIZE: (224,224)
+  CROP_SIZE: (384,384)
 SET:
   COUNT: 81
 MODEL:
   TYPE: deit_large
-  NAME: diff_attention
+  NAME: base_size
   DROP_PATH_RATE: 0.0
   VIT:
+    INPUT_SIZE : 384
+    MODEL_SIZE : base
     PATCH_SIZE : 16
     EMBED_DIM : 384
     DEPTH : 12

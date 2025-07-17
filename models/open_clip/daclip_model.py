@@ -46,11 +46,11 @@ class DaCLIP(nn.Module):
     def encode_image(self, image, control=False, normalize: bool = False):
         if control:
             degra_features, hiddens = self.visual_control(image, output_hiddens=True)
-            image_features = self.clip.visual(image, control=hiddens)
+            # image_features = self.clip.visual(image, control=hiddens)
             
-            image_features = F.normalize(image_features, dim=-1) if normalize else image_features
+            # image_features = F.normalize(image_features, dim=-1) if normalize else image_features
             degra_features = F.normalize(degra_features, dim=-1) if normalize else degra_features
-            return image_features, degra_features
+            return degra_features, hiddens
         else:
             return self.clip.encode_image(image, normalize)
 

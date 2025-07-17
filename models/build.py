@@ -72,7 +72,9 @@ def build_model(config):
         model = build_deit_large(
             pretrained=True,
             img_size=config.MODEL.VIT.INPUT_SIZE,
-            model_size=config.MODEL.VIT.MODEL_SIZE
+            model_size=config.MODEL.VIT.MODEL_SIZE,
+            infer=config.MODEL.VIT.CROSS_VALID,
+            infer_model_path=config.MODEL.VIT.CROSS_MODEL_PATH
         )
     # elif model_type == "deit_large":
     #     model = build_deit_large(

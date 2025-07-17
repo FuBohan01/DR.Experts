@@ -69,9 +69,11 @@ class AttentionPoolingLayer(nn.Module):
           :return output:用户行为向量之和，反应用户的爱好
         """
         # 1.计算目标和历史行为之间的相关性
-        attns = self.active_unit(query_ad, user_behavior)     
+        attns = self.active_unit(query_ad, user_behavior) 
+
         # 2.注意力系数乘以行为 
         output = user_behavior.mul(attns)
+        # output = user_behavior.mul(query_ad)
         # 3.历史行为向量相加
         # output = user_behavior.sum(dim=1)
         output = output.sum(dim=1)

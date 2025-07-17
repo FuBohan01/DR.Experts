@@ -8,11 +8,11 @@ SET:
   COUNT: 586
 MODEL:
   TYPE: deit_large
-  NAME: base_size
+  NAME: small_size
   DROP_PATH_RATE: 0.0
   VIT:
     INPUT_SIZE : 384
-    MODEL_SIZE : base
+    MODEL_SIZE : small
     PATCH_SIZE : 16
     EMBED_DIM : 384
     DEPTH : 12
@@ -22,6 +22,7 @@ MODEL:
     # # Download the pretrained weights and input the path here
     PRETRAINED: True
     PRETRAINED_MODEL_PATH: /home/fubohan/Code/DIQA/checkpoint/deit_3_small_384_21k.pth
+    CROSS_VALID: False
 TRAIN:
   EPOCHS: 9
   WARMUP_EPOCHS: 3

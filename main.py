@@ -259,7 +259,8 @@ def main(config):
         if (
             dist.get_rank() == 0
             # and (epoch % config.SAVE_FREQ == 0 or epoch == (config.TRAIN.EPOCHS - 1))
-            and (epoch > config.TRAIN.EPOCHS / 2)
+            # and (epoch > config.TRAIN.EPOCHS / 2)
+            and (epoch > 2)
             and not config.DISABLE_SAVE
         ):
             save_checkpoint(
@@ -594,46 +595,49 @@ if __name__ == "__main__":
 
         config.defrost()
         # BID
-        config.OUTPUT = ((config.OUTPUT).replace(config.TAG, "full_bid_deit_daclip_v2_diffv3_DIN")
-                         .replace("base_size", "diff_attention")
-        )
+        # config.OUTPUT = ((config.OUTPUT).replace(config.TAG, "full_bid_deit_daclip_v2_diffv3_DIN")
+        #                  .replace("small_size", "diff_attention")
+        # )
         # TID
         # config.OUTPUT = ((config.OUTPUT).replace(config.TAG, "full_tid_deit_daclip_v2_diffv3_DIN")
-        #                  .replace("vit_base", "diff_attention"))
+        #                  .replace("base_size", "diff_attention"))
         # LIVEFB
         # config.OUTPUT = ((config.OUTPUT).replace(config.TAG, "full_livefb_deit_daclip_v2_diffv3_DIN_224")
-        #                  .replace("base_size", "diff_attention")
+        #                  .replace("cross", "diff_attention")
+        #                  .replace("/media/hdd1/fubohan/results", "/home/fubohan/Code/DIQA/results")
         #                  )
         # CSIQ
         # config.OUTPUT = ((config.OUTPUT).replace(config.TAG, "full_csiq_deit_daclip_v2_diffv3_DIN")
-        #                  .replace("kadid_test", "diff_attention"))
+        #                  .replace("small_size", "diff_attention"))
         # KADID
         # config.OUTPUT = ((config.OUTPUT).replace(config.TAG, "full_kadid_deit_daclip_v2_diffv3_DIN")
-        #                  .replace("kadid_test", "diff_attention")
+        #                  .replace("base_size", "diff_attention")
         # )
         # SPAQ
         # config.OUTPUT = ((config.OUTPUT).replace(
         #     config.TAG, "full_spaq_deit_daclip_v2_diffv3_DIN_224_1")
-        #     .replace("kadid_test", "diff_attention")
+        #     .replace("small_size", "diff_attention")
         #     )
         # LIVE
         # config.OUTPUT = (
         #     (config.OUTPUT)
         #     .replace(config.TAG, "full_live_deit_daclip_v2_diffv3_DIN_224")
-        #     .replace("kadid_test", "diff_attention")
+        #     .replace("small_size", "diff_attention")
         # )
         # LIVEC
         # config.OUTPUT = (
         #     (config.OUTPUT)
         #     .replace(config.TAG, "full_livec_deit[base]_daclip_v2_diffv3_DIN")
-        #     .replace("base_size", "vit_base")
+        #     .replace("vit_small", "vit_base")
+        #     .replace("/media/hdd1/fubohan/results", "/home/fubohan/Code/DIQA/results")
         # )
         # K10K
-        # config.OUTPUT = (
-        #     (config.OUTPUT)
-        #     .replace(config.TAG, "full_k10_deit")
-        #     .replace("kadid_test", "deiqt_small")
-        # )
+        config.OUTPUT = (
+            (config.OUTPUT)
+            .replace(config.TAG, "full_k10_deit")
+            .replace("vit_small", "deiqt_small")
+            .replace("/media/hdd1/fubohan/results", "/home/fubohan/Code/DIQA/results")
+        )
         config.freeze()
 
         with open(os.path.join(config.OUTPUT, filename), "rb") as f:

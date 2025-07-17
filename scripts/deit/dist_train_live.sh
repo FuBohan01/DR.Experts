@@ -5,6 +5,6 @@ CUDA_VISIBLE_DEVICES=4,5,6,7 OMP_NUM_THREADS=4 torchrun --nnodes 1 --nproc_per_n
 --data-path /media/hdd1/hzh/iqa-dataset/live/databaserelease2 \
 --output results \
 --tensorboard \
---tag full_live_deit[base]_daclip_v2_diffv3_DIN \
+--tag full_live_deit_daclip_v2_diffv3_DIN \
 --repeat \
 --rnum 10

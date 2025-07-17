@@ -254,17 +254,13 @@ def validate(config, data_loader, model, val_len):
     temp_pred_scores = []
     temp_gt_scores = []
     end = time.time()
-    for idx, (images, depths, orders, target, score_ts) in enumerate(data_loader):
+    for idx, (images, target) in enumerate(data_loader):
         images = images.cuda(non_blocking=True)
-        depths = depths.cuda(non_blocking=True)
-        score_ts = score_ts.cuda(non_blocking=True)
-        for i in range(len(orders)):
-            orders[i] = orders[i].cuda(non_blocking=True)
 
         target = target.cuda(non_blocking=True)
 
         with torch.amp.autocast("cuda", enabled=config.AMP_ENABLE):
-            output = model(images, depths, orders)
+            output = model(images)
         target.unsqueeze_(dim=-1)
         temp_pred_scores.append(output.view(-1))
         temp_gt_scores.append(target.view(-1))

@@ -1,18 +1,18 @@
 DATA:
   DATASET: tid2013
-  BATCH_SIZE: 8 # 30 for 4 gpus
-  PATCH_NUM: 4
-  TEST_PATCH_NUM: 15
+  BATCH_SIZE: 4 # 30 for 4 gpus
+  PATCH_NUM: 1
+  TEST_PATCH_NUM: 10
   CROP_SIZE: (384,384)
 SET:
   COUNT: 25
 MODEL:
   TYPE: deit_large
-  NAME: diff_attention
+  NAME: base_size
   DROP_PATH_RATE: 0.0
   VIT:
     INPUT_SIZE : 384
-    MODEL_SIZE : small
+    MODEL_SIZE : base
     PATCH_SIZE : 16
     EMBED_DIM : 384
     DEPTH : 12

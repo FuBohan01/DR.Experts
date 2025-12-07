@@ -5,6 +5,6 @@ CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 OMP_NUM_THREADS=4 torchrun --nnodes 1 --npr
 --data-path /media/hdd1/hzh/iqa-dataset/liveFB \
 --output /media/hdd1/fubohan/results \
 --tensorboard \
---tag full_livefb_weight \
+--tag full_livefb_deit_daclip_v3_diffv5 \
 --repeat \
---rnum 10
+--rnum 40

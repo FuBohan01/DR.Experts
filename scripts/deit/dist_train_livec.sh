@@ -1,19 +1,19 @@
 #!/home/guanyi/.local/bin/zsh
 # NCCL_P2P_DISABLE=1 
-CUDA_VISIBLE_DEVICES=4,5,6,7 OMP_NUM_THREADS=6 torchrun --nnodes 1 --nproc_per_node 4 --master_port 49949  main.py \
+CUDA_VISIBLE_DEVICES=2,5,6,7 OMP_NUM_THREADS=6 torchrun --nnodes 1 --nproc_per_node 4 --master_port 49949  main.py \
 --cfg /home/fubohan/Code/DIQA/configs/deit_daclip/deit_livec.yaml \
 --data-path /media/hdd1/hzh/iqa-dataset/livec \
 --output /media/hdd1/fubohan/results \
 --tensorboard \
---tag full_livec_deit_daclip_v3_diffv4_norm_10linear \
+--tag full_livec_deit_daclip_v3_diffv5_din_bestversion_class[noise_rainy_hazy_jpeg_shadow] \
 --repeat \
---rnum 10
+--rnum 40
 
 CUDA_VISIBLE_DEVICES=4,5,6,7 OMP_NUM_THREADS=6 torchrun --nnodes 1 --nproc_per_node 4 --master_port 49949  main.py \
 --cfg /home/fubohan/Code/DIQA/configs/deit_daclip/deit_livec.yaml \
 --data-path /media/hdd1/hzh/iqa-dataset/livec \
 --output results \
 --tensorboard \
---tag full_livec_deit_daclip_v2_diffv3_comprehensive_feature \
+--tag full_livec_deit_daclip_v2_diffv3_ comprehensive_feature \
 --repeat \
 --rnum 10

@@ -9,7 +9,7 @@ SET:
   COUNT: 39810
 MODEL:
   TYPE: deit_large
-  NAME: cross
+  NAME: vit_small
   DROP_PATH_RATE: 0.0
   VIT:
     INPUT_SIZE : 384
@@ -34,4 +34,4 @@ TRAIN:
   LR_SCHEDULER:
     NAME: step
     DECAY_EPOCHS: 3
-DISABLE_SAVE: False
+DISABLE_SAVE: True

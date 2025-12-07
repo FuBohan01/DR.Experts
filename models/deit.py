@@ -320,7 +320,7 @@ class diff_attention(nn.Module):
         
         # alpha = torch.relu(self.alpha_fc(X))
         # result = (A2_softmax *(1 - self.alpha * A1_softmax)) @ V   
-        result = (A2_softmax - self.alpha * A1_softmax) @ V
+        result = (A1_softmax - self.alpha * A2_softmax) @ V
         # return result[:, 0] #[bs, 586, 384]
         return result #[bs, 576, 384]
 
@@ -459,7 +459,7 @@ class dascore_vit_models(nn.Module):
             self.embed_dim = 384
         else:
             self.embed_dim = 768
-        self.decoder = DeepInterestNet(self.embed_dim)
+        self.decoder = DeepInterestNet(self.embed_dim, 10)
         
         checkpoint = '/home/fubohan/Code/DIQA/checkpoint/daclip_ViT-B-32.pt'
         self.head, self.head_preprocess = open_clip.create_model_from_pretrained('daclip_ViT-B-32', pretrained=checkpoint)
@@ -467,7 +467,8 @@ class dascore_vit_models(nn.Module):
 
         self.L1 = nn.Linear(512, self.embed_dim)
         self.L2 = nn.Linear(self.N, 1)  # 196 is the number of patches in ViT-B-32
-        self.diff_attention = diff_attention(self.embed_dim)  # 384 is the embedding dimension of ViT-B-32
+        self.diff_attention_list = nn.ModuleList([diff_attention(self.embed_dim) for _ in range(10)])
+        # self.diff_attention = diff_attention(self.embed_dim)  # 384 is the embedding dimension of ViT-B-32
 
         tokenizer = open_clip.get_tokenizer('ViT-B-32')
         self.text = tokenizer(degradations).cuda()
@@ -497,7 +498,7 @@ class dascore_vit_models(nn.Module):
             img_feature = self.norm_vit(img_feature)  
             hidden_feature_i = hidden_feature[:, i, :, :]  # [bs, 577, 384]
             hidden_feature_i = self.norm3_hidden_feature(hidden_feature_i)  # [bs,
-            diff_attn = self.diff_attention(da_metrics_i, img_feature, hidden_feature_i)  # [bs, 577, 384]
+            diff_attn = self.diff_attention_list[i](da_metrics_i, img_feature, hidden_feature_i)  # [bs, 577, 384]
 
             group_attn.append(diff_attn)  
         # group_attn = torch.cat(group_attn, dim=-1)  # [bs, 577, 384 * nclass]
@@ -528,8 +529,12 @@ class dascore_vit_models(nn.Module):
         da_img_feature = da_img_feature / da_img_feature.norm(dim=-1, keepdim=True)
         text_features = text_features / text_features.norm(dim=-1, keepdim=True)
         
+        # 选择特定的分类类别 (例如 'jpeg-compressed', 'low-light' 对应索引 2, 3)
+        selected_indices = [0,1,2,3,4,5,6,7,8,9]  # 根据degradations列表中的位置调整
+        text_features_selected = text_features[selected_indices]  # [n_class, 512]
+
         # 先扩展维度
-        text_features_expand = text_features.unsqueeze(0).expand(da_img_feature.shape[0], -1, -1)  # [52, nclass, 512]
+        text_features_expand = text_features_selected.unsqueeze(0).expand(da_img_feature.shape[0], -1, -1)  # [52, nclass, 512]
         da_img_feature_expand = da_img_feature.unsqueeze(1)  # [52, 1, 512]
 
         # 按元素相乘
@@ -537,7 +542,7 @@ class dascore_vit_models(nn.Module):
         da_metrics = self.norm1(da_metrics)  # [52, n_class, 512]
         # da_metrics = self.L1(da_metrics) # shape=[bs, n_class, 384]
         da_metrcis_list = []
-        for i in range(10):
+        for i in range(len(selected_indices)):
             da_metrcis_list.append(self.linears[i](da_metrics[:, i, :]))  # [bs, 384]
         da_metrics = torch.stack(da_metrcis_list, dim=1)  # [bs, 10, 384]
 
@@ -551,7 +556,7 @@ class dascore_vit_models(nn.Module):
         hidden_feature = hidden_feature.permute(0, 2, 3, 1)            # [bs, 24, 24, 384]
         hidden_feature = hidden_feature.reshape(bs, -1, self.embed_dim)  # [bs, 576, 384]
         hidden_feature = hidden_feature.unsqueeze(1)  # [bs, 1, 576, 384]
-        hidden_feature = hidden_feature.expand(-1, 10, -1, -1)  # [bs, 10, 576, 384]
+        hidden_feature = hidden_feature.expand(-1, len(selected_indices), -1, -1)  # [bs, 10, 576, 384]
         da_token = da_metrics.unsqueeze(2)  # [bs, 10, 1, 384]
         hidden_feature = torch.cat((da_token, hidden_feature), dim=2)  # [bs,10, 577, 384]
         # img_feature = self.norm2(img_feature)  # [52, 576, 384]
@@ -596,9 +601,9 @@ def build_deit_large(pretrained=False, img_size=384, model_size='small',pretrain
         model.backbone.load_state_dict(state_dict, strict=False)
         for name, param in model.named_parameters():
             if 'head' in name:
-                param.requires_grad = True
+                param.requires_grad = False
             elif 'text' in name:
-                param.requires_grad = True
+                param.requires_grad = False
     elif infer:
         assert infer_model_path != ""
         checkpoint = torch.load(

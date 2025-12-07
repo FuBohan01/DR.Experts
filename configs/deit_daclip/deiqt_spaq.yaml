@@ -8,7 +8,7 @@ SET:
   COUNT: 11125
 MODEL:
   TYPE: deit_large
-  NAME: small_size
+  NAME: final_version
   DROP_PATH_RATE: 0.0
   VIT:
     INPUT_SIZE : 384
@@ -33,4 +33,4 @@ TRAIN:
   LR_SCHEDULER:
     NAME: step
     DECAY_EPOCHS: 3
-DISABLE_SAVE: True
+DISABLE_SAVE: False

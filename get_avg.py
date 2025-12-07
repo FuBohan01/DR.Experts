@@ -16,7 +16,7 @@ def calculate_median(values):
     mid_index = len(sorted_values) // 2
     return (sorted_values[mid_index] + sorted_values[~mid_index]) / 2 if len(values) % 2 else sorted_values[mid_index]
 
-base_path = "/media/hdd1/fubohan/results/vit_small/full_livec_deit_daclip_v3_diffv4"
+base_path = "/media/hdd1/fubohan/results/rebuttal/full_livec_deit_daclip_v3_diffv5_din_bestversion"
 plcc_values = []
 srcc_values = []
 indexes = []  # 记录每个srcc和plcc的索引

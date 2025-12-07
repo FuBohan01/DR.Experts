@@ -581,13 +581,13 @@ if __name__ == "__main__":
 
         filename = "sel_num.data"
         # -----------------------------
-        # if dist.get_rank() == 0:
-        #     if not os.path.exists(sel_path := os.path.join(config.OUTPUT, filename)):
-        #         sel_num = list(range(0, config.SET.COUNT))
-        #         random.shuffle(sel_num)
-        #         with open(os.path.join(config.OUTPUT, filename), "wb") as f:
-        #             pickle.dump(sel_num, f)
-        #         del sel_num
+        if dist.get_rank() == 0:
+            if not os.path.exists(sel_path := os.path.join(config.OUTPUT, filename)):
+                sel_num = list(range(0, config.SET.COUNT))
+                random.shuffle(sel_num)
+                with open(os.path.join(config.OUTPUT, filename), "wb") as f:
+                    pickle.dump(sel_num, f)
+                del sel_num
         # -----------------------------
         dist.barrier()
 
@@ -627,17 +627,23 @@ if __name__ == "__main__":
         # LIVEC
         # config.OUTPUT = (
         #     (config.OUTPUT)
-        #     .replace(config.TAG, "full_livec_deit[base]_daclip_v2_diffv3_DIN")
-        #     .replace("vit_small", "vit_base")
-        #     .replace("/media/hdd1/fubohan/results", "/home/fubohan/Code/DIQA/results")
+        #     .replace(config.TAG, "full_livec_deit_daclip_v3_diffv5_norm_10linear[run40]")
+        #     .replace("rebuttal", "vit_small")
+        #     # .replace("/media/hdd1/fubohan/results", "/home/fubohan/Code/DIQA/results")
         # )
         # K10K
-        config.OUTPUT = (
-            (config.OUTPUT)
-            .replace(config.TAG, "full_k10_deit")
-            .replace("vit_small", "deiqt_small")
-            .replace("/media/hdd1/fubohan/results", "/home/fubohan/Code/DIQA/results")
-        )
+        # config.OUTPUT = (
+        #     (config.OUTPUT)
+        #     .replace(config.TAG, "full_k10_deit")
+        #     .replace("rebuttal", "vit_small")
+        #     .replace("/media/hdd1/fubohan/results", "/home/fubohan/Code/DIQA/results")
+        # )
+        # config.OUTPUT = (
+        #     (config.OUTPUT)
+        #     .replace(config.TAG, "full_k10k_deit_daclip_v3_diffv5")
+        #     .replace("rebuttal", "vit_small")
+        #     # .replace("/media/hdd1/fubohan/results", "/home/fubohan/Code/DIQA/results")
+        # )
         config.freeze()
 
         with open(os.path.join(config.OUTPUT, filename), "rb") as f:

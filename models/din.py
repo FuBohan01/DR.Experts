@@ -61,6 +61,7 @@ class AttentionPoolingLayer(nn.Module):
     def __init__(self, embedding_dim):
         super(AttentionPoolingLayer, self).__init__()
         self.active_unit = ActivationUnit(embedding_dim = embedding_dim)
+        # self.Linear = nn.Linear(embedding_dim, embedding_dim)
         
     def forward(self, query_ad, user_behavior):
         """
@@ -70,6 +71,8 @@ class AttentionPoolingLayer(nn.Module):
         """
         # 1.计算目标和历史行为之间的相关性
         attns = self.active_unit(query_ad, user_behavior) 
+
+        # user_behavior = self.Linear(user_behavior)  # [bs, 10, 577, 384]
 
         # 2.注意力系数乘以行为 
         output = user_behavior.mul(attns)
@@ -84,8 +87,10 @@ class DeepInterestNet(nn.Module):
       模型主体
     """
 
-    def __init__(self, embed_dim):
+    def __init__(self, embed_dim, class_num=10):
         super(DeepInterestNet, self).__init__()
+
+        self.class_num = class_num
 
         # 3.注意力计算层（论文核心）
         self.AttentionActivate = AttentionPoolingLayer(embed_dim)
@@ -94,7 +99,7 @@ class DeepInterestNet(nn.Module):
     
     def forward(self, diff, img): # [bs, 10, 577, 384]  [bs, 577, 384]
         img = img.unsqueeze(1)
-        img = img.expand(-1, 10, -1, -1)
+        img = img.expand(-1, self.class_num, -1, -1)
 
         
         user_interest = self.AttentionActivate(diff, img)

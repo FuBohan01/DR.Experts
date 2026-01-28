@@ -214,17 +214,22 @@ pyrightconfig.json
 
 checkpoint/
 results/
-# configs/
-# models/clip/
-# models/kan/
-# models/loralib/
-# models/content_encoder.py
-# models/deiqt.py
-# models/dformer.py
-# models/diff_attention.py
-# models/gabor.py
-# models/mamba_vision.py
-# models/starnet.py
+configs/
+models/clip/
+models/kan/
+models/loralib/
+models/content_encoder.py
+models/deiqt.py
+models/dformer.py
+models/diff_attention.py
+models/gabor.py
+models/mamba_vision.py
+models/starnet.py
 
-# scripts/
-# visuals/
+scripts/
+visuals/
+README.md
+field.py
+get_avg.py
+output_scores.txt
+README.md

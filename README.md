@@ -16,3 +16,8 @@ and data efficiency.
 
 ---
 
+**Behind the Scenes**: 
+- 💰 Research resources magically provided by Runze Hu
+- 🧠 Core idea originated from late-night discussions with my awesome senior Guanyi Qin
+- 🐛 Half of the bugs were fixed by Guanyi Qin's magical debugging skills
+- ☕ This paper was fueled by countless coffees sponsored by Guanyi Qin

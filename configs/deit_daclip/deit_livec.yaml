@@ -9,11 +9,11 @@ SET:
   COUNT: 1162
 MODEL:
   TYPE: deit_large
-  NAME: rebuttal
+  NAME: final_version
   DROP_PATH_RATE: 0.0
   VIT:
     INPUT_SIZE : 384
-    MODEL_SIZE : base
+    MODEL_SIZE : small
     PATCH_SIZE : 16
     EMBED_DIM : 384
     DEPTH : 12

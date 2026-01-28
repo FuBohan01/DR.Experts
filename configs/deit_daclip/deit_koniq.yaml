@@ -1,7 +1,7 @@
 DATA:
   DATASET: koniq
-  # BATCH_SIZE: 39  # 4卡
-  BATCH_SIZE: 22  # 6卡
+  BATCH_SIZE: 39  # 4卡
+  # BATCH_SIZE: 22  # 6卡
   # BATCH_SIZE: 52  # 3卡
   PATCH_NUM: 3 #3
   TEST_PATCH_NUM: 15
@@ -10,11 +10,11 @@ SET:
   COUNT: 10073
 MODEL:
   TYPE: deit_large
-  NAME: rebuttal
+  NAME: final_version
   DROP_PATH_RATE: 0.0
   VIT:
     INPUT_SIZE : 384
-    MODEL_SIZE : base
+    MODEL_SIZE : small
     PATCH_SIZE : 16
     EMBED_DIM : 384
     DEPTH : 12

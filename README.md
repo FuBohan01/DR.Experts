@@ -2,8 +2,7 @@
 
 This repository contains the official implementation of our AAAI 2026 paper:
 
-&gt; **DR.Experts: Differential Refinement of Distortion-Aware Experts for Blind Image Quality Assessment**  
-&gt;  Bohan Fu, Guanyi Qin, Fazhan Zhang, Zihao Huang, Mingxuan Li, Runze Hu1  
+&gt;  Author: Bohan Fu, Guanyi Qin, Fazhan Zhang, Zihao Huang, Mingxuan Li, Runze Hu1  
 &gt; *AAAI Conference on Artificial Intelligence (AAAI), 2026*
 ---
 
@@ -16,3 +15,7 @@ Extensive experiments conducted on five challenging BIQA benchmarks demonstrate 
 and data efficiency. 
 
 ---
+
+Acknowledge:
+
+I would like to express my sincere gratitude to my senior fellow Guanyi Qin for his guidance and mentor Runze Hu for his support throughout this project.

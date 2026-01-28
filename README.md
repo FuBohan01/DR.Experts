@@ -18,4 +18,4 @@ and data efficiency.
 
 Acknowledge:
 
-I would like to express my sincere gratitude to my senior fellow Guanyi Qin for his guidance and mentor Runze Hu for his support throughout this project.
+I would like to express my sincere gratitude to my senior fellow Guanyi Qin for his guidance and support throughout this project.
